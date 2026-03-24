@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { signOutAction, updateDisplayNameAction } from "@/app/actions";
@@ -9,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app
 import { Input } from "@/app/components/ui/input";
 import { requireMembership, requireUser } from "@/lib/auth";
 import { env } from "@/lib/env";
-import { getInviteUrl } from "@/lib/invite-links";
+import { getInviteUrl, getRequestOrigin } from "@/lib/invite-links";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getFamilyRoleLabel, getUiErrorMessage } from "@/lib/ui-text";
 
@@ -30,7 +31,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
   const membership = await requireMembership(user.id);
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: family }, params] = await Promise.all([
+  const [headersList, { data: family }, params] = await Promise.all([
+    headers(),
     supabase.from("families").select("id, invite_code, owner_user_id").eq("id", membership.family_id).maybeSingle(),
     searchParams
   ]);
@@ -43,7 +45,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
   const updated = readParam(params, "updated");
   const errorMessage = error ? getUiErrorMessage(error) : "";
   const isOwner = family.owner_user_id === user.id;
-  const inviteUrl = getInviteUrl(family.invite_code, env.NEXT_PUBLIC_SITE_URL);
+  const inviteUrl = getInviteUrl(family.invite_code, getRequestOrigin(headersList, env.NEXT_PUBLIC_SITE_URL));
 
   return (
     <section className="page-stack">

@@ -1,6 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import { getAuthPath, getInvitePath, getInviteUrl, normalizeInviteCode, sanitizeNextPath } from "@/lib/invite-links";
+import {
+  getAuthPath,
+  getInvitePath,
+  getInviteUrl,
+  getRequestOrigin,
+  normalizeInviteCode,
+  sanitizeNextPath
+} from "@/lib/invite-links";
+
+function createHeaders(entries: Record<string, string | undefined>) {
+  return {
+    get(key: string) {
+      return entries[key] ?? null;
+    }
+  };
+}
 
 describe("normalizeInviteCode", () => {
   it("trims and uppercases invite codes", () => {
@@ -17,6 +32,31 @@ describe("getInvitePath", () => {
 describe("getInviteUrl", () => {
   it("builds an absolute invite url from the site url", () => {
     expect(getInviteUrl("abcd2345", "https://glassbottle.app")).toBe("https://glassbottle.app/invite/ABCD2345");
+  });
+});
+
+describe("getRequestOrigin", () => {
+  it("prefers forwarded host and protocol for deployed requests", () => {
+    expect(
+      getRequestOrigin(
+        createHeaders({
+          "x-forwarded-host": "glassbottle.vercel.app",
+          "x-forwarded-proto": "https",
+          host: "localhost:3000"
+        }),
+        "http://localhost:3000"
+      )
+    ).toBe("https://glassbottle.vercel.app");
+  });
+
+  it("falls back to host when forwarded headers are missing", () => {
+    expect(getRequestOrigin(createHeaders({ host: "localhost:3000" }), "https://glassbottle.app")).toBe(
+      "http://localhost:3000"
+    );
+  });
+
+  it("returns the fallback site url when host headers are unavailable", () => {
+    expect(getRequestOrigin(createHeaders({}), "https://glassbottle.app")).toBe("https://glassbottle.app");
   });
 });
 
