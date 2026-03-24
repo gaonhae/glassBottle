@@ -1,3 +1,10 @@
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
 export function generateInviteCode(length = 8): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
@@ -17,6 +24,12 @@ export function formatDateTime(value: string | null): string {
   return new Date(value).toLocaleString("ko-KR", {
     dateStyle: "long",
     timeStyle: "short"
+  });
+}
+
+export function formatDate(value: string): string {
+  return new Date(value).toLocaleDateString("ko-KR", {
+    dateStyle: "long"
   });
 }
 

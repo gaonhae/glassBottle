@@ -1,7 +1,12 @@
 import { redirect } from "next/navigation";
 
 import { signOutAction, updateDisplayNameAction } from "@/app/actions";
-import { requireUser } from "@/lib/auth";
+import { PageHeader } from "@/app/components/page-header";
+import { StatusMessage } from "@/app/components/status-message";
+import { Button } from "@/app/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
+import { Input } from "@/app/components/ui/input";
+import { requireMembership, requireUser } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getFamilyRoleLabel, getUiErrorMessage } from "@/lib/ui-text";
 
@@ -19,63 +24,74 @@ function readParam(params: Record<string, string | string[] | undefined>, key: s
 
 export default async function SettingsPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requireUser();
+  const membership = await requireMembership(user.id);
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: membership }, params] = await Promise.all([
-    supabase.from("family_members").select("family_id, display_name").eq("user_id", user.id).maybeSingle(),
+  const [{ data: family }, params] = await Promise.all([
+    supabase.from("families").select("id, invite_code, owner_user_id").eq("id", membership.family_id).maybeSingle(),
     searchParams
   ]);
 
-  if (!membership) {
+  if (!family) {
     redirect("/onboarding");
   }
-
-  const { data: family } = await supabase
-    .from("families")
-    .select("id, invite_code, owner_user_id")
-    .eq("id", membership.family_id)
-    .maybeSingle();
 
   const error = readParam(params, "error");
   const updated = readParam(params, "updated");
   const errorMessage = error ? getUiErrorMessage(error) : "";
-
-  const isOwner = family?.owner_user_id === user.id;
+  const isOwner = family.owner_user_id === user.id;
 
   return (
-    <section className="stack">
-      <h1>설정</h1>
-      {updated === "1" && <p className="success">표시 이름이 변경되었습니다.</p>}
-      {errorMessage && <p className="error">{errorMessage}</p>}
+    <section className="page-stack">
+      <PageHeader
+        eyebrow="Settings"
+        title="설정"
+        description="프로필 이름과 가족 공간 정보를 관리할 수 있습니다."
+      />
 
-      <div className="card stack">
-        <h2>표시 이름</h2>
-        <form action={updateDisplayNameAction} className="actions">
-          <input name="displayName" defaultValue={membership.display_name} maxLength={24} required />
-          <button type="submit">저장</button>
-        </form>
-      </div>
+      {updated === "1" ? <StatusMessage variant="success">표시 이름이 변경되었습니다.</StatusMessage> : null}
+      {errorMessage ? <StatusMessage variant="error">{errorMessage}</StatusMessage> : null}
 
-      <div className="card stack">
-        <h2>가족 정보</h2>
-        {family ? (
-          <>
-            <p className="muted">초대 코드: {family.invite_code}</p>
-            <p className="muted">역할: {getFamilyRoleLabel(isOwner)}</p>
-          </>
-        ) : (
-          <p className="muted">가족 정보를 불러올 수 없습니다.</p>
-        )}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>내 프로필</CardTitle>
+          <CardDescription>가족 공간 안에서 보이는 표시 이름입니다.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={updateDisplayNameAction} className="section-stack">
+            <label className="field">
+              <span>표시 이름</span>
+              <Input name="displayName" defaultValue={membership.display_name} maxLength={24} required />
+            </label>
+            <Button type="submit">이름 저장하기</Button>
+          </form>
+        </CardContent>
+      </Card>
 
-      <div className="card stack">
-        <h2>계정</h2>
-        <form action={signOutAction}>
-          <button type="submit" className="secondary">
-            로그아웃
-          </button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>가족 공간 정보</CardTitle>
+          <CardDescription>공간에 다른 가족을 초대하거나, 내 역할을 확인할 수 있습니다.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm leading-6 text-slate-600">
+          <p>초대 코드: <span className="font-semibold tracking-[0.22em] text-slate-950">{family.invite_code}</span></p>
+          <p>내 역할: <span className="font-semibold text-slate-950">{getFamilyRoleLabel(isOwner)}</span></p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>계정</CardTitle>
+          <CardDescription>현재 계정에서 로그아웃합니다.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action={signOutAction}>
+            <Button type="submit" variant="secondary" className="w-full">
+              로그아웃
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </section>
   );
 }

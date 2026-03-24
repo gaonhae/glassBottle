@@ -26,6 +26,6 @@ describe("generateRandomDelaySeconds", () => {
     const { delaySeconds, scheduledAt } = computeSchedule(now, () => 0);
 
     expect(delaySeconds).toBe(MIN_DELAY_SECONDS);
-    expect(scheduledAt.toISOString()).toBe("2026-03-19T05:00:00.000Z");
+    expect(scheduledAt.toISOString()).toBe("2026-03-19T01:00:00.000Z");
   });
 });

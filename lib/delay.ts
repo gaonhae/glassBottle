@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 
-export const MIN_DELAY_HOURS = 5;
+export const MIN_DELAY_HOURS = 1;
 export const MAX_DELAY_HOURS = 72;
 export const MIN_DELAY_SECONDS = MIN_DELAY_HOURS * 60 * 60;
 export const MAX_DELAY_SECONDS = MAX_DELAY_HOURS * 60 * 60;

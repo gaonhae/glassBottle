@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
 
 import { createFamilyAction, joinFamilyAction } from "@/app/actions";
+import { PageHeader } from "@/app/components/page-header";
+import { StatusMessage } from "@/app/components/status-message";
+import { Button } from "@/app/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
+import { Input } from "@/app/components/ui/input";
 import { getMembership, requireUser } from "@/lib/auth";
 import { getUiErrorMessage } from "@/lib/ui-text";
 
@@ -21,7 +26,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: S
   const membership = await getMembership(user.id);
 
   if (membership) {
-    redirect("/inbox");
+    redirect("/prompts");
   }
 
   const params = await searchParams;
@@ -29,39 +34,57 @@ export default async function OnboardingPage({ searchParams }: { searchParams: S
   const errorMessage = error ? getUiErrorMessage(error) : "";
 
   return (
-    <section className="stack">
-      <h1>가족 공간 시작하기</h1>
-      {errorMessage && <p className="error">{errorMessage}</p>}
-      <div className="grid two">
-        <div className="card stack">
-          <h2>가족 만들기</h2>
-          <form action={createFamilyAction} className="stack">
-            <label>
-              표시 이름
-              <input name="displayName" maxLength={24} required placeholder="아빠, 미나, 수연 이모..." />
-            </label>
-            <label>
-              가족 이름
-              <input name="familyName" maxLength={40} required placeholder="김 가족" />
-            </label>
-            <button type="submit">가족 만들기</button>
-          </form>
-        </div>
+    <section className="page-stack">
+      <PageHeader
+        eyebrow="Onboarding"
+        title="가족 공간을 시작해 볼까요?"
+        description="새로운 가족 공간을 만들거나, 초대 코드를 사용해 기존 공간에 참여할 수 있습니다."
+      />
 
-        <div className="card stack">
-          <h2>초대 코드로 참여하기</h2>
-          <form action={joinFamilyAction} className="stack">
-            <label>
-              표시 이름
-              <input name="displayName" maxLength={24} required placeholder="아빠, 미나, 수연 이모..." />
-            </label>
-            <label>
-              초대 코드
-              <input name="inviteCode" required placeholder="ABCD2345" style={{ textTransform: "uppercase" }} />
-            </label>
-            <button type="submit">가족 참여하기</button>
-          </form>
-        </div>
+      {errorMessage ? <StatusMessage variant="error">{errorMessage}</StatusMessage> : null}
+
+      <div className="grid gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>새 가족 공간 만들기</CardTitle>
+            <CardDescription>먼저 공간을 만들고, 초대 코드를 가족에게 공유하세요.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={createFamilyAction} className="section-stack">
+              <label className="field">
+                <span>내 표시 이름</span>
+                <Input name="displayName" maxLength={24} required placeholder="예: 민지, 엄마" />
+              </label>
+              <label className="field">
+                <span>가족 이름</span>
+                <Input name="familyName" maxLength={40} required placeholder="예: 김씨 가족" />
+              </label>
+              <Button type="submit">가족 공간 만들기</Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>초대 코드로 참여하기</CardTitle>
+            <CardDescription>가족에게 받은 초대 코드를 입력하면 바로 합류할 수 있습니다.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={joinFamilyAction} className="section-stack">
+              <label className="field">
+                <span>내 표시 이름</span>
+                <Input name="displayName" maxLength={24} required placeholder="예: 민지, 엄마" />
+              </label>
+              <label className="field">
+                <span>초대 코드</span>
+                <Input name="inviteCode" required placeholder="ABCD2345" className="uppercase tracking-[0.22em]" />
+              </label>
+              <Button type="submit" variant="secondary">
+                가족 공간 참여하기
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </section>
   );

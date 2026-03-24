@@ -1,11 +1,17 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { cancelScheduledLetterAction, updateScheduledLetterAction } from "@/app/actions";
-import { requireUser } from "@/lib/auth";
+import { EmptyState } from "@/app/components/empty-state";
+import { PageHeader } from "@/app/components/page-header";
+import { StatusMessage } from "@/app/components/status-message";
+import { Badge } from "@/app/components/ui/badge";
+import { buttonVariants, Button } from "@/app/components/ui/button";
+import { Card, CardContent } from "@/app/components/ui/card";
+import { Textarea } from "@/app/components/ui/textarea";
+import { requireMembership, requireUser } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getLetterStatusLabel, getUiErrorMessage } from "@/lib/ui-text";
-import { formatDateTime, snippet } from "@/lib/utils";
+import { cn, formatDateTime, snippet } from "@/lib/utils";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -21,17 +27,8 @@ function readParam(params: Record<string, string | string[] | undefined>, key: s
 
 export default async function OutboxPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requireUser();
+  const membership = await requireMembership(user.id);
   const supabase = await createSupabaseServerClient();
-
-  const { data: membership } = await supabase
-    .from("family_members")
-    .select("family_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (!membership) {
-    redirect("/onboarding");
-  }
 
   const [lettersResult, recipientsResult, params] = await Promise.all([
     supabase
@@ -52,7 +49,6 @@ export default async function OutboxPage({ searchParams }: { searchParams: Searc
   }
 
   const nameByUserId = new Map((recipientsResult.data ?? []).map((member) => [member.user_id, member.display_name]));
-
   const sent = readParam(params, "sent");
   const updated = readParam(params, "updated");
   const canceled = readParam(params, "canceled");
@@ -61,65 +57,97 @@ export default async function OutboxPage({ searchParams }: { searchParams: Searc
   const now = Date.now();
 
   return (
-    <section className="stack">
-      <div className="actions" style={{ justifyContent: "space-between" }}>
-        <h1>보낸 편지함</h1>
-        <Link href="/letters/new">
-          <button type="button">새 편지 쓰기</button>
-        </Link>
-      </div>
+    <section className="page-stack">
+      <PageHeader
+        eyebrow="Outbox"
+        title="보낸 편지"
+        description="전달을 기다리는 편지와 이미 읽힌 편지까지 한눈에 확인할 수 있습니다."
+        action={
+          <Link href="/letters/new" className={cn(buttonVariants({ size: "sm" }), "no-underline")}>
+            새 편지 쓰기
+          </Link>
+        }
+      />
 
-      {sent === "1" && <p className="success">편지 예약이 완료되었습니다.</p>}
-      {updated === "1" && <p className="success">예약된 편지가 수정되었습니다.</p>}
-      {canceled === "1" && <p className="success">예약된 편지가 취소되었습니다.</p>}
-      {errorMessage && <p className="error">{errorMessage}</p>}
+      {sent === "1" ? <StatusMessage variant="success">편지를 보냈습니다. 이제 조용히 도착을 기다려 보세요.</StatusMessage> : null}
+      {updated === "1" ? <StatusMessage variant="success">편지를 수정했습니다.</StatusMessage> : null}
+      {canceled === "1" ? <StatusMessage variant="success">편지를 취소했습니다.</StatusMessage> : null}
+      {errorMessage ? <StatusMessage variant="error">{errorMessage}</StatusMessage> : null}
 
       {lettersResult.data && lettersResult.data.length > 0 ? (
-        <div className="list">
+        <div className="grid gap-3">
           {lettersResult.data.map((letter) => {
             const editable = letter.status === "scheduled" && new Date(letter.editable_until).getTime() > now;
-            const recipientName = nameByUserId.get(letter.recipient_user_id) ?? "가족 구성원";
+            const recipientName = nameByUserId.get(letter.recipient_user_id) ?? "이름 없음";
 
             return (
-              <article key={letter.id} className="card stack">
-                <div className="actions" style={{ justifyContent: "space-between" }}>
-                  <span className={`badge ${letter.status === "read" ? "ok" : ""}`}>{getLetterStatusLabel(letter.status)}</span>
-                  <span className="muted">받는 사람: {recipientName}</span>
-                </div>
-                <p>{snippet(letter.body_text, 120)}</p>
-                <p className="muted">예약 시각: {formatDateTime(letter.scheduled_at)}</p>
-                <p className="muted">읽은 시각: {formatDateTime(letter.read_at)}</p>
-                <Link href={`/letters/${letter.id}`}>상세 보기</Link>
-
-                {editable && (
-                  <div className="stack">
-                    <form action={updateScheduledLetterAction} className="stack">
-                      <input type="hidden" name="letterId" value={letter.id} />
-                      <label>
-                        5분 이내 수정
-                        <textarea name="bodyText" defaultValue={letter.body_text} maxLength={2000} required />
-                      </label>
-                      <button type="submit" className="secondary">
-                        수정 저장
-                      </button>
-                    </form>
-
-                    <form action={cancelScheduledLetterAction}>
-                      <input type="hidden" name="letterId" value={letter.id} />
-                      <button type="submit" className="danger">
-                        편지 취소
-                      </button>
-                    </form>
+              <Card key={letter.id}>
+                <CardContent className="space-y-5 px-5 py-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <Badge variant={letter.status === "read" ? "success" : letter.status === "canceled" ? "danger" : "accent"}>
+                      {getLetterStatusLabel(letter.status)}
+                    </Badge>
+                    <p className="text-sm text-slate-400">받는 사람 {recipientName}</p>
                   </div>
-                )}
-              </article>
+
+                  <div className="space-y-2">
+                    <p className="text-sm leading-6 text-slate-700">{snippet(letter.body_text, 120)}</p>
+                    <div className="meta-list">
+                      <p>예약 시간: {formatDateTime(letter.scheduled_at)}</p>
+                      <p>도착 시간: {formatDateTime(letter.delivered_at)}</p>
+                      <p>읽은 시간: {formatDateTime(letter.read_at)}</p>
+                    </div>
+                  </div>
+
+                  <Link href={`/letters/${letter.id}`} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "w-fit no-underline")}>
+                    상세 보기
+                  </Link>
+
+                  {editable ? (
+                    <Card className="border-dashed border-slate-200 bg-slate-50/70 shadow-none">
+                      <CardContent className="space-y-4 px-4 py-4">
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-semibold text-slate-950">5분 안에는 수정 또는 취소가 가능합니다.</h3>
+                          <p className="text-sm leading-6 text-slate-500">말을 조금 다듬고 싶다면 지금 수정해 주세요.</p>
+                        </div>
+
+                        <form action={updateScheduledLetterAction} className="section-stack">
+                          <input type="hidden" name="letterId" value={letter.id} />
+                          <label className="field">
+                            <span>편지 내용 수정</span>
+                            <Textarea name="bodyText" defaultValue={letter.body_text} maxLength={2000} required className="min-h-[140px]" />
+                          </label>
+                          <div className="flex flex-col gap-3 sm:flex-row">
+                            <Button type="submit" variant="secondary" className="sm:flex-1">
+                              수정 저장하기
+                            </Button>
+                          </div>
+                        </form>
+
+                        <form action={cancelScheduledLetterAction}>
+                          <input type="hidden" name="letterId" value={letter.id} />
+                          <Button type="submit" variant="destructive" className="w-full">
+                            이 편지 취소하기
+                          </Button>
+                        </form>
+                      </CardContent>
+                    </Card>
+                  ) : null}
+                </CardContent>
+              </Card>
             );
           })}
         </div>
       ) : (
-        <section className="card stack">
-          <p className="muted">아직 보낸 편지가 없습니다.</p>
-        </section>
+        <EmptyState
+          title="보낸 편지가 아직 없어요"
+          description="첫 편지를 쓰면 전달 전 상태와 읽힘 상태를 이곳에서 관리할 수 있습니다."
+          action={
+            <Link href="/letters/new" className={cn(buttonVariants({ size: "sm" }), "no-underline")}>
+              첫 편지 쓰기
+            </Link>
+          }
+        />
       )}
     </section>
   );

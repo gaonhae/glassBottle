@@ -10,6 +10,8 @@ import { getUiErrorCode } from "@/lib/ui-text";
 import { generateInviteCode } from "@/lib/utils";
 
 const passwordSchema = z.string().min(8).max(72);
+const answerBodySchema = z.string().trim().min(1).max(2000);
+const commentBodySchema = z.string().trim().min(1).max(800);
 
 const signInSchema = z.object({
   email: z.string().email(),
@@ -24,7 +26,7 @@ const signUpSchema = z
   })
   .refine((data) => data.password === data.confirmPassword, {
     path: ["confirmPassword"],
-    message: "비밀번호가 서로 일치하지 않습니다."
+    message: "Passwords must match"
   });
 
 const createFamilySchema = z.object({
@@ -56,7 +58,17 @@ const displayNameSchema = z.object({
   displayName: z.string().trim().min(1).max(24)
 });
 
-async function requireUser() {
+const submitAnswerSchema = z.object({
+  questionId: z.string().uuid(),
+  bodyText: answerBodySchema
+});
+
+const createCommentSchema = z.object({
+  answerId: z.string().uuid(),
+  bodyText: commentBodySchema
+});
+
+async function requireUserContext() {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user }
@@ -77,8 +89,26 @@ async function ensureNoMembership(supabase: Awaited<ReturnType<typeof createSupa
   }
 
   if (data) {
-    redirect("/inbox");
+    redirect("/prompts");
   }
+}
+
+async function getRequiredMembership(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, userId: string) {
+  const { data, error } = await supabase
+    .from("family_members")
+    .select("family_id, display_name")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    redirect("/onboarding");
+  }
+
+  return data;
 }
 
 export async function signInWithPasswordAction(formData: FormData) {
@@ -150,7 +180,7 @@ export async function createFamilyAction(formData: FormData) {
     redirect("/onboarding?error=onboarding-invalid-create-input");
   }
 
-  const { supabase, user } = await requireUser();
+  const { supabase, user } = await requireUserContext();
   await ensureNoMembership(supabase, user.id);
 
   const email = user.email ?? "";
@@ -190,7 +220,8 @@ export async function createFamilyAction(formData: FormData) {
   }
 
   revalidatePath("/onboarding");
-  redirect("/inbox");
+  revalidatePath("/prompts");
+  redirect("/prompts");
 }
 
 export async function joinFamilyAction(formData: FormData) {
@@ -203,7 +234,7 @@ export async function joinFamilyAction(formData: FormData) {
     redirect("/onboarding?error=onboarding-invalid-join-input");
   }
 
-  const { supabase, user } = await requireUser();
+  const { supabase, user } = await requireUserContext();
   await ensureNoMembership(supabase, user.id);
 
   const normalizedCode = parsed.data.inviteCode.toUpperCase();
@@ -236,7 +267,8 @@ export async function joinFamilyAction(formData: FormData) {
   }
 
   revalidatePath("/onboarding");
-  redirect("/inbox");
+  revalidatePath("/prompts");
+  redirect("/prompts");
 }
 
 export async function sendLetterAction(formData: FormData) {
@@ -250,17 +282,8 @@ export async function sendLetterAction(formData: FormData) {
     redirect("/letters/new?error=letter-invalid-input");
   }
 
-  const { supabase, user } = await requireUser();
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("family_members")
-    .select("family_id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (membershipError) {
-    redirect("/onboarding");
-  }
+  const { supabase, user } = await requireUserContext();
+  const membership = await getRequiredMembership(supabase, user.id);
 
   const { data: recipient, error: recipientError } = await supabase
     .from("family_members")
@@ -307,7 +330,7 @@ export async function updateScheduledLetterAction(formData: FormData) {
     redirect("/outbox?error=letter-invalid-update-input");
   }
 
-  const { supabase, user } = await requireUser();
+  const { supabase, user } = await requireUserContext();
 
   const { data: updatedLetter, error } = await supabase
     .from("letters")
@@ -339,7 +362,7 @@ export async function cancelScheduledLetterAction(formData: FormData) {
     redirect("/outbox?error=letter-invalid-cancel-input");
   }
 
-  const { supabase, user } = await requireUser();
+  const { supabase, user } = await requireUserContext();
 
   const { data: canceledLetter, error } = await supabase
     .from("letters")
@@ -363,6 +386,84 @@ export async function cancelScheduledLetterAction(formData: FormData) {
   redirect("/outbox?canceled=1");
 }
 
+export async function submitAnswerAction(formData: FormData) {
+  const parsed = submitAnswerSchema.safeParse({
+    questionId: formData.get("questionId"),
+    bodyText: formData.get("bodyText")
+  });
+
+  if (!parsed.success) {
+    redirect("/prompts?error=answer-invalid-input");
+  }
+
+  const { supabase, user } = await requireUserContext();
+  const membership = await getRequiredMembership(supabase, user.id);
+
+  const { data: question, error: questionError } = await supabase
+    .from("questions")
+    .select("id")
+    .eq("id", parsed.data.questionId)
+    .maybeSingle();
+
+  if (questionError || !question) {
+    redirect(`/prompts/${parsed.data.questionId}?error=answer-invalid-input`);
+  }
+
+  const { error: insertError } = await supabase.from("answers").insert({
+    question_id: parsed.data.questionId,
+    family_id: membership.family_id,
+    author_user_id: user.id,
+    body_text: parsed.data.bodyText
+  });
+
+  if (insertError) {
+    redirect(`/prompts/${parsed.data.questionId}?error=${encodeURIComponent(getUiErrorCode(insertError.message))}`);
+  }
+
+  revalidatePath("/prompts");
+  revalidatePath(`/prompts/${parsed.data.questionId}`);
+  redirect(`/prompts/${parsed.data.questionId}?answered=1`);
+}
+
+export async function createAnswerCommentAction(formData: FormData) {
+  const parsed = createCommentSchema.safeParse({
+    answerId: formData.get("answerId"),
+    bodyText: formData.get("bodyText")
+  });
+
+  if (!parsed.success) {
+    redirect("/prompts?error=comment-invalid-input");
+  }
+
+  const { supabase, user } = await requireUserContext();
+  const membership = await getRequiredMembership(supabase, user.id);
+
+  const { data: answer, error: answerError } = await supabase
+    .from("answers")
+    .select("id, question_id, family_id")
+    .eq("id", parsed.data.answerId)
+    .maybeSingle();
+
+  if (answerError || !answer || answer.family_id !== membership.family_id) {
+    redirect(`/answers/${parsed.data.answerId}?error=comment-invalid-answer`);
+  }
+
+  const { error: insertError } = await supabase.from("answer_comments").insert({
+    answer_id: parsed.data.answerId,
+    family_id: membership.family_id,
+    author_user_id: user.id,
+    body_text: parsed.data.bodyText
+  });
+
+  if (insertError) {
+    redirect(`/answers/${parsed.data.answerId}?error=${encodeURIComponent(getUiErrorCode(insertError.message))}`);
+  }
+
+  revalidatePath(`/answers/${parsed.data.answerId}`);
+  revalidatePath(`/prompts/${answer.question_id}`);
+  redirect(`/answers/${parsed.data.answerId}?commented=1#comments`);
+}
+
 export async function updateDisplayNameAction(formData: FormData) {
   const parsed = displayNameSchema.safeParse({
     displayName: formData.get("displayName")
@@ -372,7 +473,7 @@ export async function updateDisplayNameAction(formData: FormData) {
     redirect("/settings?error=settings-invalid-display-name");
   }
 
-  const { supabase, user } = await requireUser();
+  const { supabase, user } = await requireUserContext();
 
   const { error: profileError } = await supabase.from("profiles").upsert({
     user_id: user.id,
@@ -394,5 +495,8 @@ export async function updateDisplayNameAction(formData: FormData) {
   }
 
   revalidatePath("/settings");
+  revalidatePath("/prompts");
+  revalidatePath("/inbox");
+  revalidatePath("/outbox");
   redirect("/settings?updated=1");
 }
