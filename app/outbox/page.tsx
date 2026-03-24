@@ -9,6 +9,7 @@ import { buttonVariants, Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Textarea } from "@/app/components/ui/textarea";
 import { requireMembership, requireUser } from "@/lib/auth";
+import { promoteDueLettersForUser } from "@/lib/letters-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getLetterStatusLabel, getUiErrorMessage } from "@/lib/ui-text";
 import { cn, formatDateTime, snippet } from "@/lib/utils";
@@ -28,6 +29,7 @@ function readParam(params: Record<string, string | string[] | undefined>, key: s
 export default async function OutboxPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requireUser();
   const membership = await requireMembership(user.id);
+  await promoteDueLettersForUser(user.id);
   const supabase = await createSupabaseServerClient();
 
   const [lettersResult, recipientsResult, params] = await Promise.all([

@@ -7,6 +7,7 @@ import { buttonVariants } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { requireMembership, requireUser } from "@/lib/auth";
 import { canRevealFamilyAnswers } from "@/lib/questions";
+import { ensureTodayQuestion } from "@/lib/questions-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { QuestionRecord } from "@/lib/types";
 import { cn, formatDate } from "@/lib/utils";
@@ -19,6 +20,7 @@ type AnswerLookupRow = {
 export default async function PromptsPage() {
   const user = await requireUser();
   const membership = await requireMembership(user.id);
+  await ensureTodayQuestion();
   const supabase = await createSupabaseServerClient();
 
   const { data: questions, error: questionsError } = await supabase

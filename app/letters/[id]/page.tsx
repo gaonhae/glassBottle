@@ -7,6 +7,7 @@ import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Textarea } from "@/app/components/ui/textarea";
 import { requireMembership, requireUser } from "@/lib/auth";
+import { promoteDueLettersForUser } from "@/lib/letters-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getLetterStatusLabel } from "@/lib/ui-text";
 import { formatDateTime } from "@/lib/utils";
@@ -17,6 +18,7 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
   const { id } = await params;
   const user = await requireUser();
   const membership = await requireMembership(user.id);
+  await promoteDueLettersForUser(user.id);
   const supabase = await createSupabaseServerClient();
 
   const { data: letter, error } = await supabase

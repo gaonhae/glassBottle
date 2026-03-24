@@ -6,6 +6,7 @@ import { Badge } from "@/app/components/ui/badge";
 import { buttonVariants } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { requireMembership, requireUser } from "@/lib/auth";
+import { promoteDueLettersForUser } from "@/lib/letters-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getLetterStatusLabel } from "@/lib/ui-text";
 import { cn, formatDateTime, snippet } from "@/lib/utils";
@@ -13,6 +14,7 @@ import { cn, formatDateTime, snippet } from "@/lib/utils";
 export default async function InboxPage() {
   const user = await requireUser();
   const membership = await requireMembership(user.id);
+  await promoteDueLettersForUser(user.id);
   const supabase = await createSupabaseServerClient();
 
   const [{ data: letters, error: lettersError }, { data: members, error: membersError }] = await Promise.all([

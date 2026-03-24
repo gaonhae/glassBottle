@@ -7,7 +7,7 @@ A sender writes an anonymous letter to a family member, and the system delivers 
 
 - Next.js (App Router)
 - Supabase Auth + Postgres + RLS
-- Vercel deployment + cron trigger
+- Vercel deployment
 
 ## Product constraints in this MVP
 
@@ -34,7 +34,6 @@ npm install
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `NEXT_PUBLIC_SITE_URL`
-- `CRON_SECRET`
 
 Auth setup for this MVP:
 
@@ -51,11 +50,11 @@ Auth setup for this MVP:
 npm run dev
 ```
 
-## Scheduler
+## Lazy background behavior
 
-- Cron endpoint: `POST /api/scheduler/deliver`
-- Protected by `CRON_SECRET`
-- Vercel cron configured in [`vercel.json`](./vercel.json) to run every minute
+- The daily prompt is created lazily on the first prompt-related request after midnight in `Asia/Seoul`.
+- Due letters are promoted lazily to `delivered` when a user visits inbox, outbox, or letter detail pages.
+- Lazy letter promotion persists `delivered_at` as the original `scheduled_at` value.
 
 ## Main routes
 
@@ -77,3 +76,5 @@ Current tests cover:
 
 - random delay bounds
 - status transition rules
+- lazy question creation logic
+- lazy letter promotion logic

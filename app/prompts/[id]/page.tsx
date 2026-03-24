@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/app/components/ui/card";
 import { Textarea } from "@/app/components/ui/textarea";
 import { requireMembership, requireUser } from "@/lib/auth";
 import { canRevealFamilyAnswers } from "@/lib/questions";
+import { ensureTodayQuestion } from "@/lib/questions-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getUiErrorMessage } from "@/lib/ui-text";
 import { cn, formatDate, formatDateTime, snippet } from "@/lib/utils";
@@ -46,6 +47,7 @@ export default async function PromptDetailPage({ params, searchParams }: { param
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const user = await requireUser();
   const membership = await requireMembership(user.id);
+  await ensureTodayQuestion();
   const supabase = await createSupabaseServerClient();
 
   const { data: question, error: questionError } = await supabase
