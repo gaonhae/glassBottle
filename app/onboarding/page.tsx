@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { createFamilyAction, joinFamilyAction } from "@/app/actions";
+import { createFamilyAction } from "@/app/actions";
 import { PageHeader } from "@/app/components/page-header";
 import { StatusMessage } from "@/app/components/status-message";
 import { Button } from "@/app/components/ui/button";
@@ -37,8 +37,8 @@ export default async function OnboardingPage({ searchParams }: { searchParams: S
     <section className="page-stack">
       <PageHeader
         eyebrow="Onboarding"
-        title="가족 공간을 시작해 볼까요?"
-        description="새로운 가족 공간을 만들거나, 초대 코드를 사용해 기존 공간에 참여할 수 있습니다."
+        title="가족을 만들고 초대해 보세요"
+        description="먼저 가족을 만들고, 설정 화면에서 초대 링크를 복사해 공유할 수 있습니다."
       />
 
       {errorMessage ? <StatusMessage variant="error">{errorMessage}</StatusMessage> : null}
@@ -46,43 +46,32 @@ export default async function OnboardingPage({ searchParams }: { searchParams: S
       <div className="grid gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>새 가족 공간 만들기</CardTitle>
-            <CardDescription>먼저 공간을 만들고, 초대 코드를 가족에게 공유하세요.</CardDescription>
+            <CardTitle>새 가족 만들기</CardTitle>
+            <CardDescription>표시 이름을 정하고, 우리 가족 공간을 바로 시작합니다.</CardDescription>
           </CardHeader>
           <CardContent>
             <form action={createFamilyAction} className="section-stack">
               <label className="field">
-                <span>내 표시 이름</span>
-                <Input name="displayName" maxLength={24} required placeholder="예: 민지, 엄마" />
+                <span>표시 이름</span>
+                <Input name="displayName" maxLength={24} required placeholder="예: 민지, 아빠" />
               </label>
               <label className="field">
                 <span>가족 이름</span>
-                <Input name="familyName" maxLength={40} required placeholder="예: 김씨 가족" />
+                <Input name="familyName" maxLength={40} required placeholder="예: 우리 가족" />
               </label>
-              <Button type="submit">가족 공간 만들기</Button>
+              <Button type="submit">가족 만들기</Button>
             </form>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>초대 코드로 참여하기</CardTitle>
-            <CardDescription>가족에게 받은 초대 코드를 입력하면 바로 합류할 수 있습니다.</CardDescription>
+            <CardTitle>가족 참여는 초대 링크로 진행돼요</CardTitle>
+            <CardDescription>이미 가족이 있다면 받은 초대 링크를 열어 바로 참여할 수 있습니다.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <form action={joinFamilyAction} className="section-stack">
-              <label className="field">
-                <span>내 표시 이름</span>
-                <Input name="displayName" maxLength={24} required placeholder="예: 민지, 엄마" />
-              </label>
-              <label className="field">
-                <span>초대 코드</span>
-                <Input name="inviteCode" required placeholder="ABCD2345" className="uppercase tracking-[0.22em]" />
-              </label>
-              <Button type="submit" variant="secondary">
-                가족 공간 참여하기
-              </Button>
-            </form>
+          <CardContent className="space-y-3 text-sm leading-6 text-slate-600">
+            <p>초대 코드를 직접 입력하는 방식은 이 버전에서 사용하지 않습니다.</p>
+            <p>가족을 만든 뒤에는 설정 화면에서 초대 링크를 복사해 공유할 수 있습니다.</p>
           </CardContent>
         </Card>
       </div>

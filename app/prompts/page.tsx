@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { EmptyState } from "@/app/components/empty-state";
 import { PageHeader } from "@/app/components/page-header";
+import { StatusMessage } from "@/app/components/status-message";
 import { Badge } from "@/app/components/ui/badge";
 import { buttonVariants } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
@@ -10,24 +11,36 @@ import { canRevealFamilyAnswers } from "@/lib/questions";
 import { ensureTodayQuestion } from "@/lib/questions-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { QuestionRecord } from "@/lib/types";
+import { getUiErrorMessage } from "@/lib/ui-text";
 import { cn, formatDate } from "@/lib/utils";
+
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 type AnswerLookupRow = {
   id: string;
   question_id: string;
 };
 
-export default async function PromptsPage() {
+function readParam(params: Record<string, string | string[] | undefined>, key: string) {
+  const value = params[key];
+
+  if (!value) {
+    return "";
+  }
+
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function PromptsPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requireUser();
   const membership = await requireMembership(user.id);
   await ensureTodayQuestion();
   const supabase = await createSupabaseServerClient();
 
-  const { data: questions, error: questionsError } = await supabase
-    .from("questions")
-    .select("id, prompt_text, publish_date, created_at")
-    .order("publish_date", { ascending: false })
-    .limit(14);
+  const [{ data: questions, error: questionsError }, params] = await Promise.all([
+    supabase.from("questions").select("id, prompt_text, publish_date, created_at").order("publish_date", { ascending: false }).limit(14),
+    searchParams
+  ]);
 
   if (questionsError) {
     throw new Error(questionsError.message);
@@ -52,16 +65,18 @@ export default async function PromptsPage() {
     answerRows = (data ?? []) as AnswerLookupRow[];
   }
 
+  const joined = readParam(params, "joined");
+  const error = readParam(params, "error");
+  const errorMessage = error ? getUiErrorMessage(error) : "";
   const answeredQuestionIds = new Set(answerRows.map((answer) => answer.question_id));
   const todayQuestion = questionRows[0] ?? null;
 
   return (
     <section className="page-stack">
-      <PageHeader
-        eyebrow="Daily prompts"
-        title="오늘의 질문"
-        description="매일 한 번 도착하는 질문에 답하고, 가족의 답변도 천천히 펼쳐 보세요."
-      />
+      <PageHeader eyebrow="Daily prompts" title="오늘의 질문" description="답변을 남기고, 가족의 생각을 천천히 함께 읽어 보세요." />
+
+      {joined === "1" ? <StatusMessage variant="success">가족 참여가 완료되었습니다. 오늘의 질문을 확인해 보세요.</StatusMessage> : null}
+      {errorMessage ? <StatusMessage variant="error">{errorMessage}</StatusMessage> : null}
 
       {todayQuestion ? (
         <Card className="overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,245,255,0.94))]">
@@ -72,24 +87,24 @@ export default async function PromptsPage() {
                 <h2 className="font-serif text-[1.9rem] leading-tight text-slate-950">{todayQuestion.prompt_text}</h2>
                 <p className="text-sm leading-6 text-slate-500">
                   {canRevealFamilyAnswers(answeredQuestionIds.has(todayQuestion.id))
-                    ? "이미 답변을 남겼어요. 이제 가족의 답변도 함께 볼 수 있습니다."
-                    : "답변을 남기면 가족의 답변이 열립니다."}
+                    ? "답변을 남겼다면, 이제 가족의 답변도 함께 볼 수 있어요."
+                    : "먼저 내 답변을 남기면 가족의 답변이 열립니다."}
                 </p>
               </div>
             </div>
-            <Link href={`/prompts/${todayQuestion.id}`} className={cn(buttonVariants({ size: "lg" }), "w-full no-underline") }>
-              {answeredQuestionIds.has(todayQuestion.id) ? "답변 보러 가기" : "오늘의 질문 답하기"}
+            <Link href={`/prompts/${todayQuestion.id}`} className={cn(buttonVariants({ size: "lg" }), "w-full no-underline")}>
+              {answeredQuestionIds.has(todayQuestion.id) ? "답변 보러 가기" : "답변 먼저 남기기"}
             </Link>
           </CardContent>
         </Card>
       ) : (
-        <EmptyState title="아직 공개된 질문이 없어요" description="질문이 준비되면 이곳에 가장 먼저 나타납니다." />
+        <EmptyState title="아직 도착한 질문이 없어요" description="질문이 준비되면 여기에서 바로 확인할 수 있습니다." />
       )}
 
       <div className="section-stack">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-950">최근 질문</h2>
-          <p className="text-sm text-slate-400">최근 14일</p>
+          <h2 className="text-lg font-semibold text-slate-950">지난 질문</h2>
+          <p className="text-sm text-slate-400">최근 14개</p>
         </div>
 
         {questionRows.length > 0 ? (
@@ -113,7 +128,7 @@ export default async function PromptsPage() {
             })}
           </div>
         ) : (
-          <EmptyState title="질문 기록이 아직 없어요" description="새 질문이 발행되면 이 목록에 차곡차곡 쌓입니다." />
+          <EmptyState title="아직 지난 질문이 없어요" description="질문이 쌓이면 이곳에서 다시 볼 수 있습니다." />
         )}
       </div>
     </section>
