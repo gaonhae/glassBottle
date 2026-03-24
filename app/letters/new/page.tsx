@@ -4,6 +4,7 @@ import { sendLetterAction } from "@/app/actions";
 import { TimezoneField } from "@/app/components/timezone-field";
 import { requireUser } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getUiErrorMessage } from "@/lib/ui-text";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -44,20 +45,21 @@ export default async function NewLetterPage({ searchParams }: { searchParams: Se
 
   const params = await searchParams;
   const errorMessage = readParam(params, "error");
+  const localizedErrorMessage = errorMessage ? getUiErrorMessage(errorMessage) : "";
 
   return (
     <section className="card stack">
-      <h1>Write a delayed letter</h1>
-      <p className="muted">Delivery is randomly scheduled between 5 and 72 hours after submission.</p>
-      {errorMessage && <p className="error">{decodeURIComponent(errorMessage)}</p>}
+      <h1>지연 편지 쓰기</h1>
+      <p className="muted">제출 후 5시간에서 72시간 사이의 임의 시점에 전달되도록 예약됩니다.</p>
+      {localizedErrorMessage && <p className="error">{localizedErrorMessage}</p>}
 
       {recipients && recipients.length > 0 ? (
         <form action={sendLetterAction} className="stack">
           <label>
-            Recipient
+            받는 사람
             <select name="recipientId" required defaultValue="">
               <option value="" disabled>
-                Select a family member
+                가족 구성원을 선택하세요
               </option>
               {recipients.map((recipient) => (
                 <option key={recipient.user_id} value={recipient.user_id}>
@@ -68,15 +70,20 @@ export default async function NewLetterPage({ searchParams }: { searchParams: Se
           </label>
 
           <label>
-            Letter text (max 2000 chars)
-            <textarea name="bodyText" required maxLength={2000} placeholder="Write openly. Delivery time is delayed by design." />
+            편지 내용 (최대 2000자)
+            <textarea
+              name="bodyText"
+              required
+              maxLength={2000}
+              placeholder="솔직한 마음을 적어 보세요. 전달 시간은 의도적으로 늦춰집니다."
+            />
           </label>
 
           <TimezoneField />
-          <button type="submit">Schedule random delivery</button>
+          <button type="submit">무작위 전달 예약하기</button>
         </form>
       ) : (
-        <p className="muted">You need at least one more family member in your family to send letters.</p>
+        <p className="muted">편지를 보내려면 가족 구성원이 한 명 이상 더 필요합니다.</p>
       )}
     </section>
   );

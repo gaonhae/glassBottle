@@ -14,7 +14,10 @@ export function formatDateTime(value: string | null): string {
     return "-";
   }
 
-  return new Date(value).toLocaleString();
+  return new Date(value).toLocaleString("ko-KR", {
+    dateStyle: "long",
+    timeStyle: "short"
+  });
 }
 
 export function snippet(text: string, maxLength = 80): string {

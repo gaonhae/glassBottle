@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { cancelScheduledLetterAction, updateScheduledLetterAction } from "@/app/actions";
 import { requireUser } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getLetterStatusLabel, getUiErrorMessage } from "@/lib/ui-text";
 import { formatDateTime, snippet } from "@/lib/utils";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -56,56 +57,57 @@ export default async function OutboxPage({ searchParams }: { searchParams: Searc
   const updated = readParam(params, "updated");
   const canceled = readParam(params, "canceled");
   const error = readParam(params, "error");
+  const errorMessage = error ? getUiErrorMessage(error) : "";
   const now = Date.now();
 
   return (
     <section className="stack">
       <div className="actions" style={{ justifyContent: "space-between" }}>
-        <h1>Outbox</h1>
+        <h1>보낸 편지함</h1>
         <Link href="/letters/new">
-          <button type="button">Write another letter</button>
+          <button type="button">새 편지 쓰기</button>
         </Link>
       </div>
 
-      {sent === "1" && <p className="success">Letter scheduled successfully.</p>}
-      {updated === "1" && <p className="success">Scheduled letter updated.</p>}
-      {canceled === "1" && <p className="success">Scheduled letter canceled.</p>}
-      {error && <p className="error">{decodeURIComponent(error)}</p>}
+      {sent === "1" && <p className="success">편지 예약이 완료되었습니다.</p>}
+      {updated === "1" && <p className="success">예약된 편지가 수정되었습니다.</p>}
+      {canceled === "1" && <p className="success">예약된 편지가 취소되었습니다.</p>}
+      {errorMessage && <p className="error">{errorMessage}</p>}
 
       {lettersResult.data && lettersResult.data.length > 0 ? (
         <div className="list">
           {lettersResult.data.map((letter) => {
             const editable = letter.status === "scheduled" && new Date(letter.editable_until).getTime() > now;
-            const recipientName = nameByUserId.get(letter.recipient_user_id) ?? "Family member";
+            const recipientName = nameByUserId.get(letter.recipient_user_id) ?? "가족 구성원";
 
             return (
               <article key={letter.id} className="card stack">
                 <div className="actions" style={{ justifyContent: "space-between" }}>
-                  <span className={`badge ${letter.status === "read" ? "ok" : ""}`}>{letter.status}</span>
-                  <span className="muted">To: {recipientName}</span>
+                  <span className={`badge ${letter.status === "read" ? "ok" : ""}`}>{getLetterStatusLabel(letter.status)}</span>
+                  <span className="muted">받는 사람: {recipientName}</span>
                 </div>
                 <p>{snippet(letter.body_text, 120)}</p>
-                <p className="muted">Scheduled: {formatDateTime(letter.scheduled_at)}</p>
-                <p className="muted">Read: {formatDateTime(letter.read_at)}</p>
-                <Link href={`/letters/${letter.id}`}>Open details</Link>
+                <p className="muted">예약 시각: {formatDateTime(letter.scheduled_at)}</p>
+                <p className="muted">읽은 시각: {formatDateTime(letter.read_at)}</p>
+                <Link href={`/letters/${letter.id}`}>상세 보기</Link>
 
                 {editable && (
                   <div className="stack">
                     <form action={updateScheduledLetterAction} className="stack">
                       <input type="hidden" name="letterId" value={letter.id} />
                       <label>
-                        Edit within 5 minutes
+                        5분 이내 수정
                         <textarea name="bodyText" defaultValue={letter.body_text} maxLength={2000} required />
                       </label>
                       <button type="submit" className="secondary">
-                        Save edits
+                        수정 저장
                       </button>
                     </form>
 
                     <form action={cancelScheduledLetterAction}>
                       <input type="hidden" name="letterId" value={letter.id} />
                       <button type="submit" className="danger">
-                        Cancel letter
+                        편지 취소
                       </button>
                     </form>
                   </div>
@@ -116,7 +118,7 @@ export default async function OutboxPage({ searchParams }: { searchParams: Searc
         </div>
       ) : (
         <section className="card stack">
-          <p className="muted">You have not sent any letters yet.</p>
+          <p className="muted">아직 보낸 편지가 없습니다.</p>
         </section>
       )}
     </section>

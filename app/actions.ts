@@ -5,13 +5,27 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { computeSchedule } from "@/lib/delay";
-import { env } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getUiErrorCode } from "@/lib/ui-text";
 import { generateInviteCode } from "@/lib/utils";
 
-const emailSchema = z.object({
-  email: z.string().email()
+const passwordSchema = z.string().min(8).max(72);
+
+const signInSchema = z.object({
+  email: z.string().email(),
+  password: passwordSchema
 });
+
+const signUpSchema = z
+  .object({
+    email: z.string().email(),
+    password: passwordSchema,
+    confirmPassword: passwordSchema
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "비밀번호가 서로 일치하지 않습니다."
+  });
 
 const createFamilySchema = z.object({
   familyName: z.string().trim().min(2).max(40),
@@ -67,29 +81,57 @@ async function ensureNoMembership(supabase: Awaited<ReturnType<typeof createSupa
   }
 }
 
-export async function requestMagicLinkAction(formData: FormData) {
-  const parsed = emailSchema.safeParse({
-    email: formData.get("email")
+export async function signInWithPasswordAction(formData: FormData) {
+  const parsed = signInSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password")
   });
 
   if (!parsed.success) {
-    redirect("/auth?error=invalid-email");
+    redirect("/auth?mode=login&error=auth-invalid-input");
   }
 
   const supabase = await createSupabaseServerClient();
 
-  const { error } = await supabase.auth.signInWithOtp({
+  const { error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
-    options: {
-      emailRedirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/confirm`
-    }
+    password: parsed.data.password
   });
 
   if (error) {
-    redirect(`/auth?error=${encodeURIComponent(error.message)}`);
+    redirect(`/auth?mode=login&error=${encodeURIComponent(getUiErrorCode(error.message))}`);
   }
 
-  redirect("/auth?sent=1");
+  redirect("/onboarding");
+}
+
+export async function signUpWithPasswordAction(formData: FormData) {
+  const parsed = signUpSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword")
+  });
+
+  if (!parsed.success) {
+    redirect("/auth?mode=signup&error=auth-signup-invalid-input");
+  }
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase.auth.signUp({
+    email: parsed.data.email,
+    password: parsed.data.password
+  });
+
+  if (error) {
+    redirect(`/auth?mode=signup&error=${encodeURIComponent(getUiErrorCode(error.message))}`);
+  }
+
+  if (data.session) {
+    redirect("/onboarding");
+  }
+
+  redirect("/auth?mode=login&success=signup-created");
 }
 
 export async function signOutAction() {
@@ -105,7 +147,7 @@ export async function createFamilyAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/onboarding?error=invalid-create-input");
+    redirect("/onboarding?error=onboarding-invalid-create-input");
   }
 
   const { supabase, user } = await requireUser();
@@ -120,46 +162,31 @@ export async function createFamilyAction(formData: FormData) {
   });
 
   if (profileError) {
-    redirect(`/onboarding?error=${encodeURIComponent(profileError.message)}`);
+    redirect(`/onboarding?error=${encodeURIComponent(getUiErrorCode(profileError.message))}`);
   }
 
   let familyId = "";
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const inviteCode = generateInviteCode(8);
-    const { data, error } = await supabase
-      .from("families")
-      .insert({
-        name: parsed.data.familyName,
-        invite_code: inviteCode,
-        owner_user_id: user.id
-      })
-      .select("id")
-      .single();
+    const { data, error } = await supabase.rpc("create_family", {
+      p_name: parsed.data.familyName,
+      p_invite_code: inviteCode,
+      p_display_name: parsed.data.displayName
+    });
 
     if (!error) {
-      familyId = data.id;
+      familyId = typeof data === "string" ? data : "";
       break;
     }
 
     if (error.code !== "23505") {
-      redirect(`/onboarding?error=${encodeURIComponent(error.message)}`);
+      redirect(`/onboarding?error=${encodeURIComponent(getUiErrorCode(error.message))}`);
     }
   }
 
   if (!familyId) {
-    redirect("/onboarding?error=invite-code-generation-failed");
-  }
-
-  const { error: memberError } = await supabase.from("family_members").insert({
-    family_id: familyId,
-    user_id: user.id,
-    display_name: parsed.data.displayName
-  });
-
-  if (memberError) {
-    await supabase.from("families").delete().eq("id", familyId).eq("owner_user_id", user.id);
-    redirect(`/onboarding?error=${encodeURIComponent(memberError.message)}`);
+    redirect("/onboarding?error=onboarding-invite-code-generation-failed");
   }
 
   revalidatePath("/onboarding");
@@ -173,36 +200,13 @@ export async function joinFamilyAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/onboarding?error=invalid-join-input");
+    redirect("/onboarding?error=onboarding-invalid-join-input");
   }
 
   const { supabase, user } = await requireUser();
   await ensureNoMembership(supabase, user.id);
 
   const normalizedCode = parsed.data.inviteCode.toUpperCase();
-
-  const { data: family, error: familyError } = await supabase
-    .from("families")
-    .select("id")
-    .eq("invite_code", normalizedCode)
-    .single();
-
-  if (familyError) {
-    redirect("/onboarding?error=invalid-invite-code");
-  }
-
-  const { count, error: countError } = await supabase
-    .from("family_members")
-    .select("id", { count: "exact", head: true })
-    .eq("family_id", family.id);
-
-  if (countError) {
-    redirect(`/onboarding?error=${encodeURIComponent(countError.message)}`);
-  }
-
-  if ((count ?? 0) >= 8) {
-    redirect("/onboarding?error=family-full");
-  }
 
   const { error: profileError } = await supabase.from("profiles").upsert({
     user_id: user.id,
@@ -211,17 +215,24 @@ export async function joinFamilyAction(formData: FormData) {
   });
 
   if (profileError) {
-    redirect(`/onboarding?error=${encodeURIComponent(profileError.message)}`);
+    redirect(`/onboarding?error=${encodeURIComponent(getUiErrorCode(profileError.message))}`);
   }
 
-  const { error: joinError } = await supabase.from("family_members").insert({
-    family_id: family.id,
-    user_id: user.id,
-    display_name: parsed.data.displayName
+  const { error: joinError } = await supabase.rpc("join_family", {
+    p_invite_code: normalizedCode,
+    p_display_name: parsed.data.displayName
   });
 
   if (joinError) {
-    redirect(`/onboarding?error=${encodeURIComponent(joinError.message)}`);
+    if (joinError.message.includes("Invalid invite code")) {
+      redirect("/onboarding?error=onboarding-invalid-invite-code");
+    }
+
+    if (joinError.message.includes("Family member limit reached")) {
+      redirect("/onboarding?error=onboarding-family-full");
+    }
+
+    redirect(`/onboarding?error=${encodeURIComponent(getUiErrorCode(joinError.message))}`);
   }
 
   revalidatePath("/onboarding");
@@ -236,7 +247,7 @@ export async function sendLetterAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/letters/new?error=invalid-letter-input");
+    redirect("/letters/new?error=letter-invalid-input");
   }
 
   const { supabase, user } = await requireUser();
@@ -259,7 +270,7 @@ export async function sendLetterAction(formData: FormData) {
     .single();
 
   if (recipientError || !recipient || recipient.user_id === user.id) {
-    redirect("/letters/new?error=invalid-recipient");
+    redirect("/letters/new?error=letter-invalid-recipient");
   }
 
   const now = new Date();
@@ -278,7 +289,7 @@ export async function sendLetterAction(formData: FormData) {
   });
 
   if (insertError) {
-    redirect(`/letters/new?error=${encodeURIComponent(insertError.message)}`);
+    redirect(`/letters/new?error=${encodeURIComponent(getUiErrorCode(insertError.message))}`);
   }
 
   revalidatePath("/outbox");
@@ -293,7 +304,7 @@ export async function updateScheduledLetterAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/outbox?error=invalid-update-input");
+    redirect("/outbox?error=letter-invalid-update-input");
   }
 
   const { supabase, user } = await requireUser();
@@ -311,8 +322,8 @@ export async function updateScheduledLetterAction(formData: FormData) {
     .maybeSingle();
 
   if (error || !updatedLetter) {
-    const message = error?.message ?? "Update window expired.";
-    redirect(`/outbox?error=${encodeURIComponent(message)}`);
+    const message = error?.message ?? "letter-update-window-expired";
+    redirect(`/outbox?error=${encodeURIComponent(getUiErrorCode(message))}`);
   }
 
   revalidatePath("/outbox");
@@ -325,7 +336,7 @@ export async function cancelScheduledLetterAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/outbox?error=invalid-cancel-input");
+    redirect("/outbox?error=letter-invalid-cancel-input");
   }
 
   const { supabase, user } = await requireUser();
@@ -344,8 +355,8 @@ export async function cancelScheduledLetterAction(formData: FormData) {
     .maybeSingle();
 
   if (error || !canceledLetter) {
-    const message = error?.message ?? "Cancel window expired.";
-    redirect(`/outbox?error=${encodeURIComponent(message)}`);
+    const message = error?.message ?? "letter-cancel-window-expired";
+    redirect(`/outbox?error=${encodeURIComponent(getUiErrorCode(message))}`);
   }
 
   revalidatePath("/outbox");
@@ -358,7 +369,7 @@ export async function updateDisplayNameAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/settings?error=invalid-display-name");
+    redirect("/settings?error=settings-invalid-display-name");
   }
 
   const { supabase, user } = await requireUser();
@@ -370,7 +381,7 @@ export async function updateDisplayNameAction(formData: FormData) {
   });
 
   if (profileError) {
-    redirect(`/settings?error=${encodeURIComponent(profileError.message)}`);
+    redirect(`/settings?error=${encodeURIComponent(getUiErrorCode(profileError.message))}`);
   }
 
   const { error: memberError } = await supabase
@@ -379,7 +390,7 @@ export async function updateDisplayNameAction(formData: FormData) {
     .eq("user_id", user.id);
 
   if (memberError) {
-    redirect(`/settings?error=${encodeURIComponent(memberError.message)}`);
+    redirect(`/settings?error=${encodeURIComponent(getUiErrorCode(memberError.message))}`);
   }
 
   revalidatePath("/settings");

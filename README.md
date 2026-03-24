@@ -36,6 +36,11 @@ npm install
 - `NEXT_PUBLIC_SITE_URL`
 - `CRON_SECRET`
 
+Auth setup for this MVP:
+
+- Enable `Email` provider in Supabase Auth.
+- Disable `Confirm email` to allow immediate sign-in after sign-up.
+
 3. Apply database schema in Supabase SQL editor.
 
 - Run [`supabase-schema.sql`](./supabase-schema.sql).
@@ -54,7 +59,7 @@ npm run dev
 
 ## Main routes
 
-- `/auth` magic link login
+- `/auth` email/password login + sign-up
 - `/onboarding` create/join family
 - `/inbox` recipient delivered letters
 - `/outbox` sender status and 5-minute edits/cancel

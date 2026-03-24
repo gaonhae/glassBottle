@@ -81,6 +81,83 @@ $$;
 revoke all on function public.user_in_family(uuid) from public;
 grant execute on function public.user_in_family(uuid) to authenticated;
 
+create or replace function public.create_family(p_name text, p_invite_code text, p_display_name text)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  created_family_id uuid;
+begin
+  if current_user_id is null then
+    raise exception 'Not authenticated.';
+  end if;
+
+  if exists (
+    select 1
+    from public.family_members fm
+    where fm.user_id = current_user_id
+  ) then
+    raise exception 'User already belongs to a family.';
+  end if;
+
+  insert into public.families (name, invite_code, owner_user_id)
+  values (trim(p_name), upper(trim(p_invite_code)), current_user_id)
+  returning id into created_family_id;
+
+  insert into public.family_members (family_id, user_id, display_name)
+  values (created_family_id, current_user_id, trim(p_display_name));
+
+  return created_family_id;
+end;
+$$;
+
+revoke all on function public.create_family(text, text, text) from public;
+grant execute on function public.create_family(text, text, text) to authenticated;
+
+create or replace function public.join_family(p_invite_code text, p_display_name text)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  target_family_id uuid;
+begin
+  if current_user_id is null then
+    raise exception 'Not authenticated.';
+  end if;
+
+  if exists (
+    select 1
+    from public.family_members fm
+    where fm.user_id = current_user_id
+  ) then
+    raise exception 'User already belongs to a family.';
+  end if;
+
+  select f.id
+  into target_family_id
+  from public.families f
+  where f.invite_code = upper(trim(p_invite_code));
+
+  if target_family_id is null then
+    raise exception 'Invalid invite code.';
+  end if;
+
+  insert into public.family_members (family_id, user_id, display_name)
+  values (target_family_id, current_user_id, trim(p_display_name));
+
+  return target_family_id;
+end;
+$$;
+
+revoke all on function public.join_family(text, text) from public;
+grant execute on function public.join_family(text, text) to authenticated;
+
 drop trigger if exists profiles_set_updated_at on public.profiles;
 create trigger profiles_set_updated_at
 before update on public.profiles
@@ -245,15 +322,15 @@ on public.letters
 for insert
 to authenticated
 with check (
-  auth.uid() = sender_user_id
-  and sender_user_id <> recipient_user_id
+  auth.uid() = letters.sender_user_id
+  and letters.sender_user_id <> letters.recipient_user_id
   and exists (
     select 1
     from public.family_members sender
     join public.family_members recipient on sender.family_id = recipient.family_id
-    where sender.user_id = sender_user_id
-      and recipient.user_id = recipient_user_id
-      and sender.family_id = family_id
+    where sender.user_id = letters.sender_user_id
+      and recipient.user_id = letters.recipient_user_id
+      and sender.family_id = letters.family_id
   )
 );
 
@@ -272,3 +349,5 @@ for update
 to authenticated
 using (auth.uid() = recipient_user_id and status = 'delivered')
 with check (auth.uid() = recipient_user_id and status = 'read');
+
+

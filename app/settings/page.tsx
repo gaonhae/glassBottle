@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { signOutAction, updateDisplayNameAction } from "@/app/actions";
 import { requireUser } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getFamilyRoleLabel, getUiErrorMessage } from "@/lib/ui-text";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -37,40 +38,41 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
 
   const error = readParam(params, "error");
   const updated = readParam(params, "updated");
+  const errorMessage = error ? getUiErrorMessage(error) : "";
 
   const isOwner = family?.owner_user_id === user.id;
 
   return (
     <section className="stack">
-      <h1>Settings</h1>
-      {updated === "1" && <p className="success">Display name updated.</p>}
-      {error && <p className="error">{decodeURIComponent(error)}</p>}
+      <h1>설정</h1>
+      {updated === "1" && <p className="success">표시 이름이 변경되었습니다.</p>}
+      {errorMessage && <p className="error">{errorMessage}</p>}
 
       <div className="card stack">
-        <h2>Display name</h2>
+        <h2>표시 이름</h2>
         <form action={updateDisplayNameAction} className="actions">
           <input name="displayName" defaultValue={membership.display_name} maxLength={24} required />
-          <button type="submit">Save</button>
+          <button type="submit">저장</button>
         </form>
       </div>
 
       <div className="card stack">
-        <h2>Family info</h2>
+        <h2>가족 정보</h2>
         {family ? (
           <>
-            <p className="muted">Invite code: {family.invite_code}</p>
-            <p className="muted">Role: {isOwner ? "Owner" : "Member"}</p>
+            <p className="muted">초대 코드: {family.invite_code}</p>
+            <p className="muted">역할: {getFamilyRoleLabel(isOwner)}</p>
           </>
         ) : (
-          <p className="muted">Family information is not available.</p>
+          <p className="muted">가족 정보를 불러올 수 없습니다.</p>
         )}
       </div>
 
       <div className="card stack">
-        <h2>Account</h2>
+        <h2>계정</h2>
         <form action={signOutAction}>
           <button type="submit" className="secondary">
-            Sign out
+            로그아웃
           </button>
         </form>
       </div>

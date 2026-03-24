@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { cancelScheduledLetterAction, updateScheduledLetterAction } from "@/app/actions";
 import { requireUser } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getLetterStatusLabel } from "@/lib/ui-text";
 import { formatDateTime } from "@/lib/utils";
 
 type Params = Promise<{ id: string }>;
@@ -57,7 +58,7 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
     }
   }
 
-  let recipientName = "Family member";
+  let recipientName = "가족 구성원";
   if (isSender) {
     const { data: recipient } = await supabase
       .from("family_members")
@@ -75,12 +76,12 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
 
   return (
     <section className="card stack">
-      <h1>Letter detail</h1>
-      {isSender && <p className="muted">Recipient: {recipientName}</p>}
-      <span className={`badge ${effectiveStatus === "read" ? "ok" : ""}`}>{effectiveStatus}</span>
-      <p className="muted">Scheduled: {formatDateTime(letter.scheduled_at)}</p>
-      <p className="muted">Delivered: {formatDateTime(letter.delivered_at)}</p>
-      <p className="muted">Read: {formatDateTime(effectiveReadAt)}</p>
+      <h1>편지 상세</h1>
+      {isSender && <p className="muted">받는 사람: {recipientName}</p>}
+      <span className={`badge ${effectiveStatus === "read" ? "ok" : ""}`}>{getLetterStatusLabel(effectiveStatus)}</span>
+      <p className="muted">예약 시각: {formatDateTime(letter.scheduled_at)}</p>
+      <p className="muted">전달 시각: {formatDateTime(letter.delivered_at)}</p>
+      <p className="muted">읽은 시각: {formatDateTime(effectiveReadAt)}</p>
       <p style={{ whiteSpace: "pre-wrap" }}>{letter.body_text}</p>
 
       {editable && (
@@ -88,18 +89,18 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
           <form action={updateScheduledLetterAction} className="stack">
             <input type="hidden" name="letterId" value={letter.id} />
             <label>
-              Edit text
+              편지 내용 수정
               <textarea name="bodyText" defaultValue={letter.body_text} maxLength={2000} required />
             </label>
             <button type="submit" className="secondary">
-              Save edits
+              수정 저장
             </button>
           </form>
 
           <form action={cancelScheduledLetterAction}>
             <input type="hidden" name="letterId" value={letter.id} />
             <button type="submit" className="danger">
-              Cancel letter
+              편지 취소
             </button>
           </form>
         </>
