@@ -30,7 +30,7 @@ export default async function RootLayout({
             <header className="sticky top-0 z-20 border-b border-white/80 bg-white/82 backdrop-blur-xl">
               <div className="flex items-start gap-4 px-5 pb-4 pt-5">
                 <Link href="/" className="min-w-0 text-slate-950 no-underline">
-                  <span className="block truncate font-serif text-[1.6rem] leading-none">{BRAND_NAME}</span>
+                  <span className="block truncate font-serif text-[1.6rem] leading-none">{`${BRAND_NAME.slice(0, 1).toUpperCase()}${BRAND_NAME.slice(1)}`}</span>
                 </Link>
                 <p className="hidden max-w-[11rem] pt-1 text-right text-xs leading-5 text-slate-500 sm:block">
                   조금 늦게 도착하는 말이 더 오래 남을 때가 있습니다.
