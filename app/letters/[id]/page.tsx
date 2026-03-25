@@ -108,12 +108,9 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
           <div className="meta-list">
             <p>작성일: {formatDate(letter.created_at)}</p>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="px-6 py-6">
-          <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">{letter.body_text}</p>
+          <div className="border-t border-slate-100 pt-5">
+            <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">{letter.body_text}</p>
+          </div>
         </CardContent>
       </Card>
 
