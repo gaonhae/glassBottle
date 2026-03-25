@@ -46,7 +46,7 @@ export function MobileNav() {
   return (
     <nav
       aria-label="모바일 내비게이션"
-      className="sticky bottom-0 z-30 grid grid-cols-4 gap-2 border-t border-white/85 bg-white/88 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl"
+      className="fixed bottom-0 left-1/2 z-30 grid w-full max-w-[430px] -translate-x-1/2 grid-cols-4 gap-2 border-t border-white/85 bg-white/88 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-20px_44px_-34px_rgba(15,23,42,0.55)] backdrop-blur-xl sm:absolute sm:left-0 sm:right-0 sm:max-w-none sm:translate-x-0 sm:shadow-none"
     >
       {navItems.map((item) => {
         const active = isActivePath(pathname, item.href);

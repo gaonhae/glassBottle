@@ -24,9 +24,9 @@ export default async function RootLayout({
   return (
     <html lang="ko">
       <body>
-        <div className="relative flex min-h-screen justify-center px-3 py-3 sm:px-6 sm:py-6">
+        <div className="relative flex min-h-[100dvh] justify-center sm:px-6 sm:py-6">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.72),transparent_52%)]" />
-          <div className="relative flex min-h-[calc(100vh-1.5rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[32px] border border-white/70 bg-white/72 shadow-shell backdrop-blur-xl sm:min-h-[calc(100vh-3rem)]">
+          <div className="relative flex min-h-[100dvh] w-full max-w-[430px] flex-col bg-white/72 backdrop-blur-xl sm:min-h-[calc(100dvh-3rem)] sm:overflow-hidden sm:rounded-[32px] sm:border sm:border-white/70 sm:shadow-shell">
             <header className="sticky top-0 z-20 border-b border-white/80 bg-white/82 backdrop-blur-xl">
               <div className="flex items-start gap-4 px-5 pb-4 pt-5">
                 <Link href="/" className="flex min-w-0 items-center gap-3 text-slate-950 no-underline">
@@ -43,7 +43,7 @@ export default async function RootLayout({
                 </p>
               </div>
             </header>
-            <main className="flex-1 px-4 pb-[7.25rem] pt-6 sm:px-5">{children}</main>
+            <main className="flex-1 px-4 pb-[calc(7.25rem+env(safe-area-inset-bottom))] pt-6 sm:px-5 sm:pb-[7.25rem]">{children}</main>
             <MobileNav />
           </div>
         </div>
