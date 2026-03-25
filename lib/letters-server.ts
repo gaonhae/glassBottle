@@ -1,24 +1,31 @@
+import { safeTrackAdminAnalyticsEvent } from "@/lib/analytics";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type DueLetter = {
   id: string;
   scheduled_at: string;
+  family_id: string;
+};
+
+export type DeliveredLetter = {
+  id: string;
+  family_id: string;
 };
 
 export type LetterPromotionStore = {
   listDueLettersForUser(userId: string, nowIso: string): Promise<DueLetter[]>;
-  markDelivered(ids: string[], deliveredAt: string): Promise<number>;
+  markDelivered(ids: string[], deliveredAt: string): Promise<DeliveredLetter[]>;
 };
 
 export async function promoteDueLetters(
   store: LetterPromotionStore,
   userId: string,
   now = new Date()
-): Promise<number> {
+): Promise<DeliveredLetter[]> {
   const dueLetters = await store.listDueLettersForUser(userId, now.toISOString());
 
   if (dueLetters.length === 0) {
-    return 0;
+    return [];
   }
 
   const idsByScheduledAt = new Map<string, string[]>();
@@ -29,13 +36,14 @@ export async function promoteDueLetters(
     idsByScheduledAt.set(letter.scheduled_at, ids);
   }
 
-  let promotedCount = 0;
+  const promotedLetters: DeliveredLetter[] = [];
 
   for (const [scheduledAt, ids] of idsByScheduledAt) {
-    promotedCount += await store.markDelivered(ids, scheduledAt);
+    const deliveredLetters = await store.markDelivered(ids, scheduledAt);
+    promotedLetters.push(...deliveredLetters);
   }
 
-  return promotedCount;
+  return promotedLetters;
 }
 
 export function createSupabaseLetterPromotionStore(): LetterPromotionStore {
@@ -45,7 +53,7 @@ export function createSupabaseLetterPromotionStore(): LetterPromotionStore {
     async listDueLettersForUser(userId, nowIso) {
       const { data, error } = await admin
         .from("letters")
-        .select("id, scheduled_at")
+        .select("id, scheduled_at, family_id")
         .eq("status", "scheduled")
         .lte("scheduled_at", nowIso)
         .or(`recipient_user_id.eq.${userId},sender_user_id.eq.${userId}`);
@@ -58,7 +66,7 @@ export function createSupabaseLetterPromotionStore(): LetterPromotionStore {
     },
     async markDelivered(ids, deliveredAt) {
       if (ids.length === 0) {
-        return 0;
+        return [];
       }
 
       const { data, error } = await admin
@@ -69,17 +77,29 @@ export function createSupabaseLetterPromotionStore(): LetterPromotionStore {
         })
         .in("id", ids)
         .eq("status", "scheduled")
-        .select("id");
+        .select("id, family_id");
 
       if (error) {
         throw new Error(error.message);
       }
 
-      return data?.length ?? 0;
+      return data ?? [];
     }
   };
 }
 
 export async function promoteDueLettersForUser(userId: string, now = new Date()) {
-  return promoteDueLetters(createSupabaseLetterPromotionStore(), userId, now);
+  const promotedLetters = await promoteDueLetters(createSupabaseLetterPromotionStore(), userId, now);
+
+  for (const letter of promotedLetters) {
+    await safeTrackAdminAnalyticsEvent({
+      eventName: "bottleLetterDelivered",
+      familyId: letter.family_id,
+      properties: {
+        letterId: letter.id
+      }
+    });
+  }
+
+  return promotedLetters.length;
 }

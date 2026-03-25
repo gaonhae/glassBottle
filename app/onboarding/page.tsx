@@ -7,7 +7,8 @@ import { Button } from "@/app/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Input } from "@/app/components/ui/input";
 import { getMembership, requireUser } from "@/lib/auth";
-import { getUiErrorMessage } from "@/lib/ui-text";
+import { normalizeInviteCode } from "@/lib/invite";
+import { getUiErrorMessage, getUiNoticeMessage } from "@/lib/ui-text";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -31,61 +32,72 @@ export default async function OnboardingPage({ searchParams }: { searchParams: S
 
   const params = await searchParams;
   const error = readParam(params, "error");
+  const notice = readParam(params, "notice");
+  const mode = readParam(params, "mode") === "join" ? "join" : "create";
+  const inviteCode = readParam(params, "inviteCode");
+  const prefilledInviteCode = inviteCode ? normalizeInviteCode(inviteCode) : "";
   const errorMessage = error ? getUiErrorMessage(error) : "";
+  const noticeMessage = notice ? getUiNoticeMessage(notice) : "";
+  const showJoinFirst = mode === "join";
+
+  const createCard = (
+    <Card key="create">
+      <CardHeader>
+        <CardTitle>? ?? ?? ???</CardTitle>
+        <CardDescription>?? ??? ???, ?? ??? ???? ?????.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action={createFamilyAction} className="section-stack">
+          <label className="field">
+            <span>? ?? ??</span>
+            <Input name="displayName" maxLength={24} required placeholder="?: ??, ??" />
+          </label>
+          <label className="field">
+            <span>?? ??</span>
+            <Input name="familyName" maxLength={40} required placeholder="?: ?? ??" />
+          </label>
+          <Button type="submit">?? ?? ???</Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+
+  const joinCard = (
+    <Card key="join">
+      <CardHeader>
+        <CardTitle>?? ??? ????</CardTitle>
+        <CardDescription>???? ?? ?? ??? ???? ?? ??? ? ????.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action={joinFamilyAction} className="section-stack">
+          <label className="field">
+            <span>? ?? ??</span>
+            <Input name="displayName" maxLength={24} required placeholder="?: ??, ??" />
+          </label>
+          <label className="field">
+            <span>?? ??</span>
+            <Input name="inviteCode" required defaultValue={prefilledInviteCode} placeholder="ABCD2345" className="uppercase tracking-[0.22em]" />
+          </label>
+          <Button type="submit" variant="secondary">
+            ?? ?? ????
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <section className="page-stack">
       <PageHeader
         eyebrow="Onboarding"
-        title="가족 공간을 시작해 볼까요?"
-        description="새로운 가족 공간을 만들거나, 초대 코드를 사용해 기존 공간에 참여할 수 있습니다."
+        title="?? ??? ??? ????"
+        description="??? ?? ??? ????, ?? ??? ??? ?? ??? ??? ? ????."
       />
 
+      {noticeMessage ? <StatusMessage variant="success">{noticeMessage}</StatusMessage> : null}
       {errorMessage ? <StatusMessage variant="error">{errorMessage}</StatusMessage> : null}
 
-      <div className="grid gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>새 가족 공간 만들기</CardTitle>
-            <CardDescription>먼저 공간을 만들고, 초대 코드를 가족에게 공유하세요.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={createFamilyAction} className="section-stack">
-              <label className="field">
-                <span>내 표시 이름</span>
-                <Input name="displayName" maxLength={24} required placeholder="예: 민지, 엄마" />
-              </label>
-              <label className="field">
-                <span>가족 이름</span>
-                <Input name="familyName" maxLength={40} required placeholder="예: 김씨 가족" />
-              </label>
-              <Button type="submit">가족 공간 만들기</Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>초대 코드로 참여하기</CardTitle>
-            <CardDescription>가족에게 받은 초대 코드를 입력하면 바로 합류할 수 있습니다.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={joinFamilyAction} className="section-stack">
-              <label className="field">
-                <span>내 표시 이름</span>
-                <Input name="displayName" maxLength={24} required placeholder="예: 민지, 엄마" />
-              </label>
-              <label className="field">
-                <span>초대 코드</span>
-                <Input name="inviteCode" required placeholder="ABCD2345" className="uppercase tracking-[0.22em]" />
-              </label>
-              <Button type="submit" variant="secondary">
-                가족 공간 참여하기
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+      <div className="grid gap-4">{showJoinFirst ? [joinCard, createCard] : [createCard, joinCard]}</div>
     </section>
   );
 }

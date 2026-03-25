@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { safeTrackAdminAnalyticsEvent, safeTrackServerAnalyticsEvent } from "@/lib/analytics";
 import { computeSchedule } from "@/lib/delay";
+import { buildAuthPath, buildOnboardingPath, getSafeNextPath, normalizeInviteCode } from "@/lib/invite";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getUiErrorCode } from "@/lib/ui-text";
 import { generateInviteCode } from "@/lib/utils";
@@ -111,14 +113,30 @@ async function getRequiredMembership(supabase: Awaited<ReturnType<typeof createS
   return data;
 }
 
+function getInviteCodeFromFormData(formData: FormData) {
+  const inviteCode = formData.get("inviteCode");
+  return typeof inviteCode === "string" ? normalizeInviteCode(inviteCode) : "";
+}
+
+function redirectToJoinOnboarding(inviteCode: string, error: string): never {
+  redirect(
+    buildOnboardingPath({
+      mode: "join",
+      inviteCode,
+      error
+    })
+  );
+}
+
 export async function signInWithPasswordAction(formData: FormData) {
+  const nextPath = getSafeNextPath(formData.get("next"));
   const parsed = signInSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password")
   });
 
   if (!parsed.success) {
-    redirect("/auth?mode=login&error=auth-invalid-input");
+    redirect(buildAuthPath({ mode: "login", next: nextPath, error: "auth-invalid-input" }));
   }
 
   const supabase = await createSupabaseServerClient();
@@ -129,13 +147,20 @@ export async function signInWithPasswordAction(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/auth?mode=login&error=${encodeURIComponent(getUiErrorCode(error.message))}`);
+    redirect(
+      buildAuthPath({
+        mode: "login",
+        next: nextPath,
+        error: getUiErrorCode(error.message)
+      })
+    );
   }
 
-  redirect("/onboarding");
+  redirect(nextPath ?? "/prompts");
 }
 
 export async function signUpWithPasswordAction(formData: FormData) {
+  const nextPath = getSafeNextPath(formData.get("next"));
   const parsed = signUpSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
@@ -143,7 +168,7 @@ export async function signUpWithPasswordAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/auth?mode=signup&error=auth-signup-invalid-input");
+    redirect(buildAuthPath({ mode: "signup", next: nextPath, error: "auth-signup-invalid-input" }));
   }
 
   const supabase = await createSupabaseServerClient();
@@ -154,14 +179,33 @@ export async function signUpWithPasswordAction(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/auth?mode=signup&error=${encodeURIComponent(getUiErrorCode(error.message))}`);
+    redirect(
+      buildAuthPath({
+        mode: "signup",
+        next: nextPath,
+        error: getUiErrorCode(error.message)
+      })
+    );
+  }
+
+  if (data.user?.id) {
+    await safeTrackAdminAnalyticsEvent({
+      eventName: "signupCompleted",
+      userId: data.user.id
+    });
   }
 
   if (data.session) {
-    redirect("/onboarding");
+    redirect(nextPath ?? "/onboarding");
   }
 
-  redirect("/auth?mode=login&success=signup-created");
+  redirect(
+    buildAuthPath({
+      mode: "login",
+      next: nextPath,
+      success: "signup-created"
+    })
+  );
 }
 
 export async function signOutAction() {
@@ -219,25 +263,33 @@ export async function createFamilyAction(formData: FormData) {
     redirect("/onboarding?error=onboarding-invite-code-generation-failed");
   }
 
+  await safeTrackServerAnalyticsEvent({
+    eventName: "familyGroupCreated",
+    userId: user.id,
+    familyId,
+    properties: { familyId }
+  });
+
   revalidatePath("/onboarding");
   revalidatePath("/prompts");
   redirect("/prompts");
 }
 
 export async function joinFamilyAction(formData: FormData) {
+  const inviteCode = getInviteCodeFromFormData(formData);
   const parsed = joinFamilySchema.safeParse({
     inviteCode: formData.get("inviteCode"),
     displayName: formData.get("displayName")
   });
 
   if (!parsed.success) {
-    redirect("/onboarding?error=onboarding-invalid-join-input");
+    redirectToJoinOnboarding(inviteCode, "onboarding-invalid-join-input");
   }
 
   const { supabase, user } = await requireUserContext();
   await ensureNoMembership(supabase, user.id);
 
-  const normalizedCode = parsed.data.inviteCode.toUpperCase();
+  const normalizedCode = normalizeInviteCode(parsed.data.inviteCode);
 
   const { error: profileError } = await supabase.from("profiles").upsert({
     user_id: user.id,
@@ -246,25 +298,34 @@ export async function joinFamilyAction(formData: FormData) {
   });
 
   if (profileError) {
-    redirect(`/onboarding?error=${encodeURIComponent(getUiErrorCode(profileError.message))}`);
+    redirectToJoinOnboarding(normalizedCode, getUiErrorCode(profileError.message));
   }
 
-  const { error: joinError } = await supabase.rpc("join_family", {
+  const { data: familyId, error: joinError } = await supabase.rpc("join_family", {
     p_invite_code: normalizedCode,
     p_display_name: parsed.data.displayName
   });
 
   if (joinError) {
     if (joinError.message.includes("Invalid invite code")) {
-      redirect("/onboarding?error=onboarding-invalid-invite-code");
+      redirectToJoinOnboarding(normalizedCode, "onboarding-invalid-invite-code");
     }
 
     if (joinError.message.includes("Family member limit reached")) {
-      redirect("/onboarding?error=onboarding-family-full");
+      redirectToJoinOnboarding(normalizedCode, "onboarding-family-full");
     }
 
-    redirect(`/onboarding?error=${encodeURIComponent(getUiErrorCode(joinError.message))}`);
+    redirectToJoinOnboarding(normalizedCode, getUiErrorCode(joinError.message));
   }
+
+  const resolvedFamilyId = typeof familyId === "string" ? familyId : "";
+
+  await safeTrackServerAnalyticsEvent({
+    eventName: "familyMemberJoined",
+    userId: user.id,
+    familyId: resolvedFamilyId || null,
+    properties: resolvedFamilyId ? { familyId: resolvedFamilyId } : undefined
+  });
 
   revalidatePath("/onboarding");
   revalidatePath("/prompts");
@@ -300,20 +361,35 @@ export async function sendLetterAction(formData: FormData) {
   const { scheduledAt } = computeSchedule(now);
   const editableUntil = new Date(now.getTime() + 5 * 60 * 1000);
 
-  const { error: insertError } = await supabase.from("letters").insert({
-    family_id: membership.family_id,
-    sender_user_id: user.id,
-    recipient_user_id: parsed.data.recipientId,
-    body_text: parsed.data.bodyText,
-    status: "scheduled",
-    scheduled_at: scheduledAt.toISOString(),
-    editable_until: editableUntil.toISOString(),
-    timezone_at_send: parsed.data.timezone
-  });
+  const { data: createdLetter, error: insertError } = await supabase
+    .from("letters")
+    .insert({
+      family_id: membership.family_id,
+      sender_user_id: user.id,
+      recipient_user_id: parsed.data.recipientId,
+      body_text: parsed.data.bodyText,
+      status: "scheduled",
+      scheduled_at: scheduledAt.toISOString(),
+      editable_until: editableUntil.toISOString(),
+      timezone_at_send: parsed.data.timezone
+    })
+    .select("id")
+    .single();
 
-  if (insertError) {
-    redirect(`/letters/new?error=${encodeURIComponent(getUiErrorCode(insertError.message))}`);
+  if (insertError || !createdLetter) {
+    const message = insertError?.message ?? "letter-invalid-input";
+    redirect(`/letters/new?error=${encodeURIComponent(getUiErrorCode(message))}`);
   }
+
+  await safeTrackServerAnalyticsEvent({
+    eventName: "bottleLetterCreated",
+    userId: user.id,
+    familyId: membership.family_id,
+    properties: {
+      letterId: createdLetter.id,
+      recipientId: parsed.data.recipientId
+    }
+  });
 
   revalidatePath("/outbox");
   revalidatePath("/letters/new");
@@ -409,16 +485,31 @@ export async function submitAnswerAction(formData: FormData) {
     redirect(`/prompts/${parsed.data.questionId}?error=answer-invalid-input`);
   }
 
-  const { error: insertError } = await supabase.from("answers").insert({
-    question_id: parsed.data.questionId,
-    family_id: membership.family_id,
-    author_user_id: user.id,
-    body_text: parsed.data.bodyText
-  });
+  const { data: createdAnswer, error: insertError } = await supabase
+    .from("answers")
+    .insert({
+      question_id: parsed.data.questionId,
+      family_id: membership.family_id,
+      author_user_id: user.id,
+      body_text: parsed.data.bodyText
+    })
+    .select("id")
+    .single();
 
-  if (insertError) {
-    redirect(`/prompts/${parsed.data.questionId}?error=${encodeURIComponent(getUiErrorCode(insertError.message))}`);
+  if (insertError || !createdAnswer) {
+    const message = insertError?.message ?? "answer-invalid-input";
+    redirect(`/prompts/${parsed.data.questionId}?error=${encodeURIComponent(getUiErrorCode(message))}`);
   }
+
+  await safeTrackServerAnalyticsEvent({
+    eventName: "answerCreated",
+    userId: user.id,
+    familyId: membership.family_id,
+    properties: {
+      questionId: parsed.data.questionId,
+      answerId: createdAnswer.id
+    }
+  });
 
   revalidatePath("/prompts");
   revalidatePath(`/prompts/${parsed.data.questionId}`);
@@ -448,16 +539,32 @@ export async function createAnswerCommentAction(formData: FormData) {
     redirect(`/answers/${parsed.data.answerId}?error=comment-invalid-answer`);
   }
 
-  const { error: insertError } = await supabase.from("answer_comments").insert({
-    answer_id: parsed.data.answerId,
-    family_id: membership.family_id,
-    author_user_id: user.id,
-    body_text: parsed.data.bodyText
-  });
+  const { data: createdComment, error: insertError } = await supabase
+    .from("answer_comments")
+    .insert({
+      answer_id: parsed.data.answerId,
+      family_id: membership.family_id,
+      author_user_id: user.id,
+      body_text: parsed.data.bodyText
+    })
+    .select("id")
+    .single();
 
-  if (insertError) {
-    redirect(`/answers/${parsed.data.answerId}?error=${encodeURIComponent(getUiErrorCode(insertError.message))}`);
+  if (insertError || !createdComment) {
+    const message = insertError?.message ?? "comment-invalid-input";
+    redirect(`/answers/${parsed.data.answerId}?error=${encodeURIComponent(getUiErrorCode(message))}`);
   }
+
+  await safeTrackServerAnalyticsEvent({
+    eventName: "commentCreated",
+    userId: user.id,
+    familyId: membership.family_id,
+    properties: {
+      answerId: parsed.data.answerId,
+      questionId: answer.question_id,
+      commentId: createdComment.id
+    }
+  });
 
   revalidatePath(`/answers/${parsed.data.answerId}`);
   revalidatePath(`/prompts/${answer.question_id}`);
@@ -500,3 +607,4 @@ export async function updateDisplayNameAction(formData: FormData) {
   revalidatePath("/outbox");
   redirect("/settings?updated=1");
 }
+

@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { promoteDueLetters, type LetterPromotionStore } from "@/lib/letters-server";
+import { promoteDueLetters, type DeliveredLetter, type LetterPromotionStore } from "@/lib/letters-server";
 
 function createLetterStore(overrides: Partial<LetterPromotionStore> = {}): LetterPromotionStore {
   return {
     listDueLettersForUser: vi.fn(async () => []),
-    markDelivered: vi.fn(async (ids) => ids.length),
+    markDelivered: vi.fn(async (ids) => ids.map((id) => ({ id, family_id: "family-1" }) satisfies DeliveredLetter)),
     ...overrides
   };
 }
@@ -16,22 +16,26 @@ describe("promoteDueLetters", () => {
 
     const promoted = await promoteDueLetters(store, "user-1", new Date("2026-03-25T00:00:00.000Z"));
 
-    expect(promoted).toBe(0);
+    expect(promoted).toEqual([]);
     expect(store.markDelivered).not.toHaveBeenCalled();
   });
 
   it("promotes due letters grouped by scheduled_at and preserves delivered_at", async () => {
     const store = createLetterStore({
       listDueLettersForUser: vi.fn(async () => [
-        { id: "letter-1", scheduled_at: "2026-03-25T09:00:00.000Z" },
-        { id: "letter-2", scheduled_at: "2026-03-25T09:00:00.000Z" },
-        { id: "letter-3", scheduled_at: "2026-03-25T10:00:00.000Z" }
+        { id: "letter-1", scheduled_at: "2026-03-25T09:00:00.000Z", family_id: "family-1" },
+        { id: "letter-2", scheduled_at: "2026-03-25T09:00:00.000Z", family_id: "family-1" },
+        { id: "letter-3", scheduled_at: "2026-03-25T10:00:00.000Z", family_id: "family-1" }
       ])
     });
 
     const promoted = await promoteDueLetters(store, "user-1", new Date("2026-03-25T12:00:00.000Z"));
 
-    expect(promoted).toBe(3);
+    expect(promoted).toEqual([
+      { id: "letter-1", family_id: "family-1" },
+      { id: "letter-2", family_id: "family-1" },
+      { id: "letter-3", family_id: "family-1" }
+    ]);
     expect(store.markDelivered).toHaveBeenCalledTimes(2);
     expect(store.markDelivered).toHaveBeenNthCalledWith(1, ["letter-1", "letter-2"], "2026-03-25T09:00:00.000Z");
     expect(store.markDelivered).toHaveBeenNthCalledWith(2, ["letter-3"], "2026-03-25T10:00:00.000Z");

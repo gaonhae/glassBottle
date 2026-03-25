@@ -6,6 +6,7 @@ import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Textarea } from "@/app/components/ui/textarea";
+import { safeTrackServerAnalyticsEvent } from "@/lib/analytics";
 import { requireMembership, requireUser } from "@/lib/auth";
 import { promoteDueLettersForUser } from "@/lib/letters-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -50,7 +51,7 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
   if (isRecipient && letter.status === "delivered") {
     const nowIso = new Date().toISOString();
 
-    const { error: readError } = await supabase
+    const { data: readLetter, error: readError } = await supabase
       .from("letters")
       .update({
         status: "read",
@@ -58,11 +59,22 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
       })
       .eq("id", letter.id)
       .eq("recipient_user_id", user.id)
-      .eq("status", "delivered");
+      .eq("status", "delivered")
+      .select("id")
+      .maybeSingle();
 
-    if (!readError) {
+    if (!readError && readLetter) {
       effectiveStatus = "read";
       effectiveReadAt = nowIso;
+
+      await safeTrackServerAnalyticsEvent({
+        eventName: "bottleLetterRead",
+        userId: user.id,
+        familyId: letter.family_id,
+        properties: {
+          letterId: letter.id
+        }
+      });
     }
   }
 
@@ -81,8 +93,8 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
     <section className="page-stack">
       <PageHeader
         eyebrow="Letter detail"
-        title="편지 읽기"
-        description="전달 상태와 함께 편지 내용을 확인할 수 있습니다."
+        title="유리병 편지"
+        description="지금 이 편지가 어떤 상태인지 차분하게 확인할 수 있습니다."
       />
 
       <Card>
@@ -97,7 +109,7 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
           </div>
 
           <div className="meta-list">
-            <p>예약 시간: {formatDateTime(letter.scheduled_at)}</p>
+            <p>도착 예정: {formatDateTime(letter.scheduled_at)}</p>
             <p>도착 시간: {formatDateTime(letter.delivered_at)}</p>
             <p>읽은 시간: {formatDateTime(effectiveReadAt)}</p>
           </div>
@@ -114,8 +126,8 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
         <Card>
           <CardContent className="space-y-5 px-6 py-6">
             <div className="space-y-1.5">
-              <h2 className="text-lg font-semibold text-slate-950">아직 수정할 수 있어요</h2>
-              <p className="text-sm leading-6 text-slate-500">보낸 뒤 5분 안에는 내용을 다듬거나 전송을 취소할 수 있습니다.</p>
+              <h2 className="text-lg font-semibold text-slate-950">편지 내용을 다듬기</h2>
+              <p className="text-sm leading-6 text-slate-500">보낸 뒤 5분 안에는 내용을 고치거나 전송을 취소할 수 있습니다.</p>
             </div>
 
             <form action={updateScheduledLetterAction} className="section-stack">
@@ -125,14 +137,14 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
                 <Textarea name="bodyText" defaultValue={letter.body_text} maxLength={2000} required className="min-h-[180px]" />
               </label>
               <Button type="submit" variant="secondary">
-                수정 저장하기
+                내용 저장하기
               </Button>
             </form>
 
             <form action={cancelScheduledLetterAction}>
               <input type="hidden" name="letterId" value={letter.id} />
               <Button type="submit" variant="destructive" className="w-full">
-                이 편지 취소하기
+                이 편지 보내지 않기
               </Button>
             </form>
           </CardContent>

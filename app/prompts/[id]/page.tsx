@@ -1,13 +1,15 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { redirect } from "next/navigation";
+import Link from "next/link";
 
 import { submitAnswerAction } from "@/app/actions";
+import { AnalyticsLink } from "@/app/components/analytics-link";
+import { AnalyticsPageView } from "@/app/components/analytics-page-view";
 import { EmptyState } from "@/app/components/empty-state";
 import { PageHeader } from "@/app/components/page-header";
 import { StatusMessage } from "@/app/components/status-message";
 import { Badge } from "@/app/components/ui/badge";
-import { buttonVariants, Button } from "@/app/components/ui/button";
+import { Button, buttonVariants } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Textarea } from "@/app/components/ui/textarea";
 import { requireMembership, requireUser } from "@/lib/auth";
@@ -105,7 +107,9 @@ export default async function PromptDetailPage({ params, searchParams }: { param
 
   return (
     <section className="page-stack">
-      <Link href="/prompts" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "w-fit no-underline") }>
+      <AnalyticsPageView eventName="questionViewed" eventProperties={{ questionId: id }} />
+
+      <Link href="/prompts" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "w-fit no-underline")}>
         <ArrowLeft className="h-4 w-4" />
         질문 목록으로
       </Link>
@@ -116,24 +120,24 @@ export default async function PromptDetailPage({ params, searchParams }: { param
           <div className="space-y-3">
             <h1 className="font-serif text-[2rem] leading-tight text-slate-950">{(question as QuestionPageRow).prompt_text}</h1>
             <p className="text-sm leading-6 text-slate-500">
-              {canReveal ? "답변을 남겼기 때문에 가족의 답변도 함께 볼 수 있어요." : "먼저 내 답변을 남겨야 가족의 답변이 열립니다."}
+              {canReveal ? "이미 답변을 남겼으니 가족의 이야기도 함께 읽을 수 있어요." : "내 답변을 먼저 남기면 가족의 답변 카드가 열립니다."}
             </p>
           </div>
         </CardContent>
       </Card>
 
-      {answered === "1" ? <StatusMessage variant="success">답변이 저장되었습니다. 이제 가족의 답변도 확인할 수 있어요.</StatusMessage> : null}
+      {answered === "1" ? <StatusMessage variant="success">답변이 저장됐어요. 이제 가족의 이야기도 같이 볼 수 있어요.</StatusMessage> : null}
       {errorMessage ? <StatusMessage variant="error">{errorMessage}</StatusMessage> : null}
 
       {!canReveal ? (
         <Card>
           <CardContent className="space-y-5 px-6 py-6">
-            <PageHeader title="내 답변 남기기" description="최대 2,000자까지 적을 수 있습니다." />
+            <PageHeader title="내 답변 남기기" description="최대 2,000자까지 자유롭게 적을 수 있어요." />
             <form action={submitAnswerAction} className="section-stack">
               <input type="hidden" name="questionId" value={id} />
               <label className="field">
                 <span>답변 내용</span>
-                <Textarea name="bodyText" maxLength={2000} required placeholder="천천히 떠오르는 이야기를 적어 보세요." />
+                <Textarea name="bodyText" maxLength={2000} required placeholder="지금 떠오르는 생각을 편하게 적어보세요." />
               </label>
               <Button type="submit">답변 저장하기</Button>
             </form>
@@ -148,7 +152,16 @@ export default async function PromptDetailPage({ params, searchParams }: { param
           {answerRows.length > 0 ? (
             <div className="grid gap-3">
               {answerRows.map((answer) => (
-                <Link key={answer.id} href={`/answers/${answer.id}`} className="block no-underline">
+                <AnalyticsLink
+                  key={answer.id}
+                  href={`/answers/${answer.id}`}
+                  eventName="answerCardClicked"
+                  eventProperties={{
+                    questionId: id,
+                    answerId: answer.id
+                  }}
+                  className="block no-underline"
+                >
                   <Card className="transition-transform duration-200 hover:-translate-y-0.5 hover:border-slate-200">
                     <CardContent className="space-y-4 px-5 py-5">
                       <div className="flex items-start justify-between gap-3">
@@ -158,11 +171,11 @@ export default async function PromptDetailPage({ params, searchParams }: { param
                       <p className="text-sm leading-6 text-slate-600">{snippet(answer.body_text, 120)}</p>
                     </CardContent>
                   </Card>
-                </Link>
+                </AnalyticsLink>
               ))}
             </div>
           ) : (
-            <EmptyState title="아직 공개된 답변이 없어요" description="가족이 답변을 남기면 이곳에서 함께 읽을 수 있습니다." />
+            <EmptyState title="아직 가족 답변이 없어요" description="가족이 답변을 남기면 여기에서 카드로 확인할 수 있어요." />
           )}
         </div>
       )}

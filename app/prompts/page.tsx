@@ -1,7 +1,9 @@
 import Link from "next/link";
 
+import { AnalyticsPageView } from "@/app/components/analytics-page-view";
 import { EmptyState } from "@/app/components/empty-state";
 import { PageHeader } from "@/app/components/page-header";
+import { StatusMessage } from "@/app/components/status-message";
 import { Badge } from "@/app/components/ui/badge";
 import { buttonVariants } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
@@ -10,18 +12,34 @@ import { canRevealFamilyAnswers } from "@/lib/questions";
 import { ensureTodayQuestion } from "@/lib/questions-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { QuestionRecord } from "@/lib/types";
+import { getUiNoticeMessage } from "@/lib/ui-text";
 import { cn, formatDate } from "@/lib/utils";
+
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 type AnswerLookupRow = {
   id: string;
   question_id: string;
 };
 
-export default async function PromptsPage() {
+function readParam(params: Record<string, string | string[] | undefined>, key: string) {
+  const value = params[key];
+
+  if (!value) {
+    return "";
+  }
+
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function PromptsPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requireUser();
   const membership = await requireMembership(user.id);
   await ensureTodayQuestion();
   const supabase = await createSupabaseServerClient();
+  const params = await searchParams;
+  const notice = readParam(params, "notice");
+  const noticeMessage = notice ? getUiNoticeMessage(notice) : "";
 
   const { data: questions, error: questionsError } = await supabase
     .from("questions")
@@ -57,11 +75,15 @@ export default async function PromptsPage() {
 
   return (
     <section className="page-stack">
+      <AnalyticsPageView eventName="homeViewed" />
+
       <PageHeader
         eyebrow="Daily prompts"
         title="오늘의 질문"
-        description="매일 한 번 도착하는 질문에 답하고, 가족의 답변도 천천히 펼쳐 보세요."
+        description="지금 이 순간 떠오르는 마음을 적고, 가족의 생각도 한눈에 살펴보세요."
       />
+
+      {noticeMessage ? <StatusMessage variant="success">{noticeMessage}</StatusMessage> : null}
 
       {todayQuestion ? (
         <Card className="overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,245,255,0.94))]">
@@ -72,18 +94,18 @@ export default async function PromptsPage() {
                 <h2 className="font-serif text-[1.9rem] leading-tight text-slate-950">{todayQuestion.prompt_text}</h2>
                 <p className="text-sm leading-6 text-slate-500">
                   {canRevealFamilyAnswers(answeredQuestionIds.has(todayQuestion.id))
-                    ? "이미 답변을 남겼어요. 이제 가족의 답변도 함께 볼 수 있습니다."
-                    : "답변을 남기면 가족의 답변이 열립니다."}
+                    ? "이미 답변을 남겼어요. 이제 가족의 답변도 함께 읽어볼 수 있어요."
+                    : "답변을 남기면 가족의 이야기도 열립니다."}
                 </p>
               </div>
             </div>
-            <Link href={`/prompts/${todayQuestion.id}`} className={cn(buttonVariants({ size: "lg" }), "w-full no-underline") }>
-              {answeredQuestionIds.has(todayQuestion.id) ? "답변 보러 가기" : "오늘의 질문 답하기"}
+            <Link href={`/prompts/${todayQuestion.id}`} className={cn(buttonVariants({ size: "lg" }), "w-full no-underline")}>
+              {answeredQuestionIds.has(todayQuestion.id) ? "답변 보러 가기" : "지금 답변 쓰기"}
             </Link>
           </CardContent>
         </Card>
       ) : (
-        <EmptyState title="아직 공개된 질문이 없어요" description="질문이 준비되면 이곳에 가장 먼저 나타납니다." />
+        <EmptyState title="아직 오늘의 질문이 없어요" description="질문이 준비되면 여기에서 바로 확인할 수 있습니다." />
       )}
 
       <div className="section-stack">
@@ -113,7 +135,7 @@ export default async function PromptsPage() {
             })}
           </div>
         ) : (
-          <EmptyState title="질문 기록이 아직 없어요" description="새 질문이 발행되면 이 목록에 차곡차곡 쌓입니다." />
+          <EmptyState title="아직 질문이 준비되지 않았어요" description="첫 질문이 발행되면 이곳에 차곡차곡 쌓입니다." />
         )}
       </div>
     </section>

@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -10,7 +11,7 @@ export function generateInviteCode(length = 8): string {
   let code = "";
 
   for (let i = 0; i < length; i += 1) {
-    code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    code += alphabet[randomInt(0, alphabet.length)];
   }
 
   return code;

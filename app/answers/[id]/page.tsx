@@ -1,12 +1,13 @@
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 
 import { createAnswerCommentAction } from "@/app/actions";
+import { AnalyticsPageView } from "@/app/components/analytics-page-view";
 import { EmptyState } from "@/app/components/empty-state";
 import { StatusMessage } from "@/app/components/status-message";
 import { Badge } from "@/app/components/ui/badge";
-import { buttonVariants, Button } from "@/app/components/ui/button";
+import { Button, buttonVariants } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Textarea } from "@/app/components/ui/textarea";
 import { requireMembership, requireUser } from "@/lib/auth";
@@ -99,7 +100,15 @@ export default async function AnswerDetailPage({ params, searchParams }: { param
 
   return (
     <section className="page-stack">
-      <Link href={`/prompts/${answer.question_id}`} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "w-fit no-underline") }>
+      <AnalyticsPageView
+        eventName="answerDetailViewed"
+        eventProperties={{
+          answerId: id,
+          questionId: answer.question_id
+        }}
+      />
+
+      <Link href={`/prompts/${answer.question_id}`} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "w-fit no-underline")}>
         <ArrowLeft className="h-4 w-4" />
         질문으로 돌아가기
       </Link>
@@ -127,7 +136,7 @@ export default async function AnswerDetailPage({ params, searchParams }: { param
           <p className="text-sm text-slate-400">{comments.length}개</p>
         </div>
 
-        {commented === "1" ? <StatusMessage variant="success">댓글을 남겼습니다.</StatusMessage> : null}
+        {commented === "1" ? <StatusMessage variant="success">댓글이 등록됐어요.</StatusMessage> : null}
         {errorMessage ? <StatusMessage variant="error">{errorMessage}</StatusMessage> : null}
 
         {comments.length > 0 ? (
@@ -145,20 +154,20 @@ export default async function AnswerDetailPage({ params, searchParams }: { param
             ))}
           </div>
         ) : (
-          <EmptyState title="첫 댓글을 남겨보세요" description="답변을 읽고 느낀 점을 짧게 남기면 대화가 이어집니다." />
+          <EmptyState title="아직 댓글이 없어요" description="가볍게 한마디를 남기며 대화를 이어가 보세요." />
         )}
 
         <Card>
           <CardContent className="space-y-5 px-6 py-6">
             <div className="space-y-1.5">
               <h3 className="text-lg font-semibold text-slate-950">댓글 남기기</h3>
-              <p className="text-sm leading-6 text-slate-500">짧은 공감이나 질문 한 줄도 충분합니다.</p>
+              <p className="text-sm leading-6 text-slate-500">짧은 한마디만으로도 대화가 이어질 수 있어요.</p>
             </div>
             <form action={createAnswerCommentAction} className="section-stack">
               <input type="hidden" name="answerId" value={id} />
               <label className="field">
                 <span>댓글 내용</span>
-                <Textarea name="bodyText" maxLength={800} required placeholder="전하고 싶은 말을 적어 보세요." />
+                <Textarea name="bodyText" maxLength={800} required placeholder="마음을 담아 짧게 남겨보세요." />
               </label>
               <Button type="submit">댓글 남기기</Button>
             </form>
