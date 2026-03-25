@@ -43,6 +43,6 @@ describe("promoteDueLetters", () => {
 
     await promoteDueLetters(store, "user-1", now);
 
-    expect(store.listDueLettersForUser).toHaveBeenCalledWith("user-1", "2026-03-25T12:34:56.000Z");
+    expect(store.listDueLettersForUser).toHaveBeenCalledWith("user-1", "2026-03-25T21:34:56.000+09:00");
   });
 });

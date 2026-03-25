@@ -11,6 +11,7 @@ import { Textarea } from "@/app/components/ui/textarea";
 import { requireMembership, requireUser } from "@/lib/auth";
 import { promoteDueLettersForUser } from "@/lib/letters-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isFutureSeoulTime } from "@/lib/time";
 import { getLetterStatusLabel, getUiErrorMessage } from "@/lib/ui-text";
 import { cn, formatDateTime, snippet } from "@/lib/utils";
 
@@ -56,8 +57,6 @@ export default async function OutboxPage({ searchParams }: { searchParams: Searc
   const canceled = readParam(params, "canceled");
   const error = readParam(params, "error");
   const errorMessage = error ? getUiErrorMessage(error) : "";
-  const now = Date.now();
-
   return (
     <section className="page-stack">
       <PageHeader
@@ -79,7 +78,7 @@ export default async function OutboxPage({ searchParams }: { searchParams: Searc
       {lettersResult.data && lettersResult.data.length > 0 ? (
         <div className="grid gap-3">
           {lettersResult.data.map((letter) => {
-            const editable = letter.status === "scheduled" && new Date(letter.editable_until).getTime() > now;
+            const editable = letter.status === "scheduled" && isFutureSeoulTime(letter.editable_until);
             const recipientName = nameByUserId.get(letter.recipient_user_id) ?? "이름 없음";
 
             return (

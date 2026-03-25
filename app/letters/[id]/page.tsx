@@ -9,6 +9,7 @@ import { Textarea } from "@/app/components/ui/textarea";
 import { requireMembership, requireUser } from "@/lib/auth";
 import { promoteDueLettersForUser } from "@/lib/letters-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isFutureSeoulTime, toSeoulIsoOffsetString } from "@/lib/time";
 import { getLetterStatusLabel } from "@/lib/ui-text";
 import { formatDateTime } from "@/lib/utils";
 
@@ -48,7 +49,7 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
   let effectiveReadAt = letter.read_at;
 
   if (isRecipient && letter.status === "delivered") {
-    const nowIso = new Date().toISOString();
+    const nowIso = toSeoulIsoOffsetString(new Date());
 
     const { error: readError } = await supabase
       .from("letters")
@@ -74,7 +75,7 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
     .eq("user_id", counterpartUserId)
     .maybeSingle();
 
-  const editable = isSender && effectiveStatus === "scheduled" && new Date(letter.editable_until).getTime() > Date.now();
+  const editable = isSender && effectiveStatus === "scheduled" && isFutureSeoulTime(letter.editable_until);
   const counterpartLabel = isSender ? "받는 사람" : "보낸 사람";
 
   return (

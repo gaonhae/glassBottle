@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { toSeoulIsoOffsetString } from "@/lib/time";
 
 type DueLetter = {
   id: string;
@@ -15,7 +16,7 @@ export async function promoteDueLetters(
   userId: string,
   now = new Date()
 ): Promise<number> {
-  const dueLetters = await store.listDueLettersForUser(userId, now.toISOString());
+  const dueLetters = await store.listDueLettersForUser(userId, toSeoulIsoOffsetString(now));
 
   if (dueLetters.length === 0) {
     return 0;

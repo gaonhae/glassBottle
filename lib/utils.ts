@@ -1,6 +1,8 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+import { formatSeoulDate, formatSeoulDateTime } from "@/lib/time";
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -17,20 +19,11 @@ export function generateInviteCode(length = 8): string {
 }
 
 export function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "-";
-  }
-
-  return new Date(value).toLocaleString("ko-KR", {
-    dateStyle: "long",
-    timeStyle: "short"
-  });
+  return formatSeoulDateTime(value);
 }
 
 export function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString("ko-KR", {
-    dateStyle: "long"
-  });
+  return formatSeoulDate(value);
 }
 
 export function snippet(text: string, maxLength = 80): string {
