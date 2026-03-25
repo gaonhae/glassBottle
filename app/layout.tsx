@@ -29,14 +29,8 @@ export default async function RootLayout({
           <div className="relative flex min-h-[100dvh] w-full max-w-[430px] flex-col bg-white/72 backdrop-blur-xl sm:min-h-[calc(100dvh-3rem)] sm:overflow-hidden sm:rounded-[32px] sm:border sm:border-white/70 sm:shadow-shell">
             <header className="sticky top-0 z-20 border-b border-white/80 bg-white/82 backdrop-blur-xl">
               <div className="flex items-start gap-4 px-5 pb-4 pt-5">
-                <Link href="/" className="flex min-w-0 items-center gap-3 text-slate-950 no-underline">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-slate-950 text-sm font-semibold uppercase tracking-[0.22em] text-white shadow-[0_18px_35px_-22px_rgba(15,23,42,0.9)]">
-                    gb
-                  </span>
-                  <span className="min-w-0 space-y-1">
-                    <span className="block text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-slate-400">slow family notes</span>
-                    <span className="block truncate font-serif text-[1.6rem] leading-none">{BRAND_NAME}</span>
-                  </span>
+                <Link href="/" className="min-w-0 text-slate-950 no-underline">
+                  <span className="block truncate font-serif text-[1.6rem] leading-none">{BRAND_NAME}</span>
                 </Link>
                 <p className="hidden max-w-[11rem] pt-1 text-right text-xs leading-5 text-slate-500 sm:block">
                   조금 늦게 도착하는 말이 더 오래 남을 때가 있습니다.
