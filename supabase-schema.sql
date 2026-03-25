@@ -80,12 +80,16 @@ create table if not exists public.answers (
 create table if not exists public.answer_comments (
   id uuid primary key default gen_random_uuid(),
   answer_id uuid not null references public.answers (id) on delete cascade,
+  parent_comment_id uuid references public.answer_comments (id) on delete cascade,
   family_id uuid not null references public.families (id) on delete cascade,
   author_user_id uuid not null references auth.users (id) on delete cascade,
   body_text text not null,
   created_at timestamptz not null default now(),
   constraint answer_comments_body_len check (char_length(body_text) between 1 and 800)
 );
+
+alter table public.answer_comments
+add column if not exists parent_comment_id uuid references public.answer_comments (id) on delete cascade;
 
 create table if not exists public.analytics_events (
   id uuid primary key default gen_random_uuid(),
@@ -108,6 +112,7 @@ create index if not exists idx_letters_due on public.letters (status, scheduled_
 create index if not exists idx_answers_family_question on public.answers (family_id, question_id, created_at desc);
 create index if not exists idx_answers_author on public.answers (author_user_id, created_at desc);
 create index if not exists idx_answer_comments_answer on public.answer_comments (answer_id, created_at asc);
+create index if not exists idx_answer_comments_parent on public.answer_comments (parent_comment_id, created_at asc);
 
 insert into public.question_templates (sort_order, body_text)
 values
@@ -190,6 +195,38 @@ $$;
 
 revoke all on function public.can_view_answer_row(uuid) from public;
 grant execute on function public.can_view_answer_row(uuid) to authenticated;
+
+create or replace function public.validate_answer_comment_parent()
+returns trigger
+language plpgsql
+as $$
+declare
+  parent_comment public.answer_comments;
+begin
+  if new.parent_comment_id is null then
+    return new;
+  end if;
+
+  select *
+  into parent_comment
+  from public.answer_comments
+  where id = new.parent_comment_id;
+
+  if parent_comment.id is null then
+    raise exception 'Invalid parent comment.';
+  end if;
+
+  if parent_comment.answer_id <> new.answer_id or parent_comment.family_id <> new.family_id then
+    raise exception 'Parent comment does not belong to the same answer or family.';
+  end if;
+
+  if parent_comment.parent_comment_id is not null then
+    raise exception 'Replies can only target top-level comments.';
+  end if;
+
+  return new;
+end;
+$$;
 
 create or replace function public.create_family(p_name text, p_invite_code text, p_display_name text)
 returns uuid
@@ -341,6 +378,12 @@ create trigger enforce_same_family_on_letter_trigger
 before insert on public.letters
 for each row
 execute function public.enforce_same_family_on_letter();
+
+drop trigger if exists answer_comment_parent_validation_trigger on public.answer_comments;
+create trigger answer_comment_parent_validation_trigger
+before insert or update of answer_id, family_id, parent_comment_id on public.answer_comments
+for each row
+execute function public.validate_answer_comment_parent();
 
 alter table public.profiles enable row level security;
 alter table public.families enable row level security;

@@ -73,6 +73,7 @@ const submitAnswerSchema = z.object({
 
 const createCommentSchema = z.object({
   answerId: z.string().uuid(),
+  parentCommentId: z.string().uuid().optional(),
   bodyText: commentBodySchema
 });
 
@@ -557,12 +558,18 @@ export async function submitAnswerAction(formData: FormData) {
 }
 
 export async function createAnswerCommentAction(formData: FormData) {
+  const answerId = readStringFormValue(formData.get("answerId"));
   const parsed = createCommentSchema.safeParse({
-    answerId: formData.get("answerId"),
+    answerId,
+    parentCommentId: readStringFormValue(formData.get("parentCommentId")) || undefined,
     bodyText: formData.get("bodyText")
   });
 
   if (!parsed.success) {
+    if (answerId) {
+      redirect(`/answers/${answerId}?error=comment-invalid-input#comments`);
+    }
+
     redirect("/prompts?error=comment-invalid-input");
   }
 
@@ -579,20 +586,39 @@ export async function createAnswerCommentAction(formData: FormData) {
     redirect(`/answers/${parsed.data.answerId}?error=comment-invalid-answer`);
   }
 
+  if (parsed.data.parentCommentId) {
+    const { data: parentComment, error: parentCommentError } = await supabase
+      .from("answer_comments")
+      .select("id, answer_id, family_id, parent_comment_id")
+      .eq("id", parsed.data.parentCommentId)
+      .maybeSingle();
+
+    if (
+      parentCommentError ||
+      !parentComment ||
+      parentComment.answer_id !== parsed.data.answerId ||
+      parentComment.family_id !== membership.family_id ||
+      parentComment.parent_comment_id
+    ) {
+      redirect(`/answers/${parsed.data.answerId}?error=comment-invalid-parent#comments`);
+    }
+  }
+
   const { data: createdComment, error: insertError } = await supabase
     .from("answer_comments")
     .insert({
       answer_id: parsed.data.answerId,
+      parent_comment_id: parsed.data.parentCommentId ?? null,
       family_id: membership.family_id,
       author_user_id: user.id,
       body_text: parsed.data.bodyText
     })
-    .select("id")
+    .select("id, parent_comment_id")
     .single();
 
   if (insertError || !createdComment) {
     const message = insertError?.message ?? "comment-invalid-input";
-    redirect(`/answers/${parsed.data.answerId}?error=${encodeURIComponent(getUiErrorCode(message))}`);
+    redirect(`/answers/${parsed.data.answerId}?error=${encodeURIComponent(getUiErrorCode(message))}#comments`);
   }
 
   await safeTrackServerAnalyticsEvent({
@@ -602,13 +628,14 @@ export async function createAnswerCommentAction(formData: FormData) {
     properties: {
       answerId: parsed.data.answerId,
       questionId: answer.question_id,
-      commentId: createdComment.id
+      commentId: createdComment.id,
+      ...(parsed.data.parentCommentId ? { parentCommentId: parsed.data.parentCommentId } : {})
     }
   });
 
   revalidatePath(`/answers/${parsed.data.answerId}`);
   revalidatePath(`/prompts/${answer.question_id}`);
-  redirect(`/answers/${parsed.data.answerId}?commented=1#comments`);
+  redirect(`/answers/${parsed.data.answerId}?commented=1#comment-${createdComment.id}`);
 }
 
 export async function updateDisplayNameAction(formData: FormData) {

@@ -37,6 +37,7 @@ const uiErrorMessages = {
   "answer-already-submitted": "이 질문에는 이미 답변을 남겼습니다.",
   "comment-invalid-input": "댓글 내용을 다시 확인해 주세요.",
   "comment-invalid-answer": "댓글을 남길 답변을 찾을 수 없습니다.",
+  "comment-invalid-parent": "대댓글을 남길 원본 댓글을 찾을 수 없습니다.",
   "data-duplicate-value": "이미 사용 중인 값입니다.",
   "unexpected-error": "예상치 못한 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
 } as const;
@@ -56,6 +57,9 @@ const uiErrorCodeByPattern: Array<[string, UiErrorCode]> = [
   ["Family member limit reached", "onboarding-family-full"],
   ["Update window expired.", "letter-update-window-expired"],
   ["Cancel window expired.", "letter-cancel-window-expired"],
+  ["Invalid parent comment.", "comment-invalid-parent"],
+  ["Parent comment does not belong to the same answer or family.", "comment-invalid-parent"],
+  ["Replies can only target top-level comments.", "comment-invalid-parent"],
   ['duplicate key value violates unique constraint "answers_question_id_author_user_id_key"', "answer-already-submitted"],
   ["duplicate key value violates unique constraint", "data-duplicate-value"]
 ];

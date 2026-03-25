@@ -24,6 +24,7 @@ export type AnswerCommentRecord = {
   answer_id: string;
   family_id: string;
   author_user_id: string;
+  parent_comment_id: string | null;
   body_text: string;
   created_at: string;
 };
