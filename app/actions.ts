@@ -6,11 +6,12 @@ import { z } from "zod";
 
 import { computeSchedule } from "@/lib/delay";
 import { getAuthPath, getInvitePath, normalizeInviteCode, sanitizeNextPath } from "@/lib/invite-links";
+import { PASSWORD_MAX_LENGTH } from "@/lib/password-policy";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getUiErrorCode } from "@/lib/ui-text";
 import { generateInviteCode } from "@/lib/utils";
 
-const passwordSchema = z.string().min(8).max(72);
+const passwordSchema = z.string().min(1).max(PASSWORD_MAX_LENGTH);
 const nextPathSchema = z.string().trim().optional();
 const answerBodySchema = z.string().trim().min(1).max(2000);
 const commentBodySchema = z.string().trim().min(1).max(800);

@@ -39,6 +39,7 @@ Auth setup for this MVP:
 
 - Enable `Email` provider in Supabase Auth.
 - Disable `Confirm email` to allow immediate sign-in after sign-up.
+- Password requirements are controlled by your Supabase Auth project settings. The app does not hardcode an 8-character minimum during sign-up.
 
 3. Apply database schema in Supabase SQL editor.
 
