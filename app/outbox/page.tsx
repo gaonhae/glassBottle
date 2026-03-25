@@ -12,7 +12,7 @@ import { requireMembership, requireUser } from "@/lib/auth";
 import { promoteDueLettersForUser } from "@/lib/letters-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getLetterStatusLabel, getUiErrorMessage } from "@/lib/ui-text";
-import { cn, formatDateTime, snippet } from "@/lib/utils";
+import { cn, formatDate, snippet } from "@/lib/utils";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -35,7 +35,7 @@ export default async function OutboxPage({ searchParams }: { searchParams: Searc
   const [lettersResult, recipientsResult, params] = await Promise.all([
     supabase
       .from("letters")
-      .select("id, recipient_user_id, body_text, status, scheduled_at, delivered_at, read_at, editable_until, created_at")
+      .select("id, recipient_user_id, body_text, status, editable_until, created_at")
       .eq("sender_user_id", user.id)
       .order("created_at", { ascending: false }),
     supabase.from("family_members").select("user_id, display_name").eq("family_id", membership.family_id),
@@ -95,9 +95,7 @@ export default async function OutboxPage({ searchParams }: { searchParams: Searc
                   <div className="space-y-2">
                     <p className="text-sm leading-6 text-slate-700">{snippet(letter.body_text, 120)}</p>
                     <div className="meta-list">
-                      <p>예약 시간: {formatDateTime(letter.scheduled_at)}</p>
-                      <p>도착 시간: {formatDateTime(letter.delivered_at)}</p>
-                      <p>읽은 시간: {formatDateTime(letter.read_at)}</p>
+                      <p>작성일: {formatDate(letter.created_at)}</p>
                     </div>
                   </div>
 

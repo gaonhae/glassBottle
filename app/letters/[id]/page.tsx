@@ -11,7 +11,7 @@ import { requireMembership, requireUser } from "@/lib/auth";
 import { promoteDueLettersForUser } from "@/lib/letters-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getLetterStatusLabel } from "@/lib/ui-text";
-import { formatDateTime } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 type Params = Promise<{ id: string }>;
 
@@ -24,9 +24,7 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
 
   const { data: letter, error } = await supabase
     .from("letters")
-    .select(
-      "id, sender_user_id, recipient_user_id, family_id, body_text, status, scheduled_at, delivered_at, read_at, editable_until, created_at"
-    )
+    .select("id, sender_user_id, recipient_user_id, family_id, body_text, status, editable_until, created_at")
     .eq("id", id)
     .single();
 
@@ -46,7 +44,6 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
   }
 
   let effectiveStatus = letter.status;
-  let effectiveReadAt = letter.read_at;
 
   if (isRecipient && letter.status === "delivered") {
     const nowIso = new Date().toISOString();
@@ -65,7 +62,6 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
 
     if (!readError && readLetter) {
       effectiveStatus = "read";
-      effectiveReadAt = nowIso;
 
       await safeTrackServerAnalyticsEvent({
         eventName: "bottleLetterRead",
@@ -109,9 +105,7 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
           </div>
 
           <div className="meta-list">
-            <p>도착 예정: {formatDateTime(letter.scheduled_at)}</p>
-            <p>도착 시간: {formatDateTime(letter.delivered_at)}</p>
-            <p>읽은 시간: {formatDateTime(effectiveReadAt)}</p>
+            <p>작성일: {formatDate(letter.created_at)}</p>
           </div>
         </CardContent>
       </Card>

@@ -9,7 +9,7 @@ import { requireMembership, requireUser } from "@/lib/auth";
 import { promoteDueLettersForUser } from "@/lib/letters-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getLetterStatusLabel } from "@/lib/ui-text";
-import { cn, formatDateTime, snippet } from "@/lib/utils";
+import { cn, formatDate, snippet } from "@/lib/utils";
 
 export default async function InboxPage() {
   const user = await requireUser();
@@ -20,7 +20,7 @@ export default async function InboxPage() {
   const [{ data: letters, error: lettersError }, { data: members, error: membersError }] = await Promise.all([
     supabase
       .from("letters")
-      .select("id, sender_user_id, body_text, status, delivered_at, read_at, created_at")
+      .select("id, sender_user_id, body_text, status, created_at")
       .eq("recipient_user_id", user.id)
       .in("status", ["delivered", "read"])
       .order("delivered_at", { ascending: false }),
@@ -57,7 +57,7 @@ export default async function InboxPage() {
               <CardContent className="space-y-4 px-5 py-5">
                 <div className="flex items-start justify-between gap-3">
                   <Badge variant={letter.status === "read" ? "success" : "accent"}>{getLetterStatusLabel(letter.status)}</Badge>
-                  <span className="text-sm text-slate-400">도착 {formatDateTime(letter.delivered_at)}</span>
+                  <span className="text-sm text-slate-400">작성일 {formatDate(letter.created_at)}</span>
                 </div>
                 <div className="space-y-1.5">
                   <p className="text-sm text-slate-500">보낸 사람: {displayNameByUserId.get(letter.sender_user_id) ?? "이름 없음"}</p>
