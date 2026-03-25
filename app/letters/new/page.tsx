@@ -7,7 +7,6 @@ import { Button } from "@/app/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Select } from "@/app/components/ui/select";
 import { Textarea } from "@/app/components/ui/textarea";
-import { TimezoneField } from "@/app/components/timezone-field";
 import { requireMembership, requireUser } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getUiErrorMessage } from "@/lib/ui-text";
@@ -83,7 +82,6 @@ export default async function NewLetterPage({ searchParams }: { searchParams: Se
                 <p className="field-hint">최대 2,000자까지 입력할 수 있습니다.</p>
               </label>
 
-              <TimezoneField />
               <Button type="submit">편지 보내기</Button>
             </form>
           ) : (

@@ -1,23 +1,9 @@
-export const QUESTION_TIMEZONE = "Asia/Seoul";
+import { getSeoulDateKey, parseSeoulDate, SEOUL_TIME_ZONE } from "@/lib/time";
 
-function getDatePartValue(parts: Intl.DateTimeFormatPart[], type: "year" | "month" | "day") {
-  return parts.find((part) => part.type === type)?.value ?? "";
-}
+export const QUESTION_TIMEZONE = SEOUL_TIME_ZONE;
 
 export function getQuestionPublishDate(now = new Date()): string {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: QUESTION_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  });
-
-  const parts = formatter.formatToParts(now);
-  const year = getDatePartValue(parts, "year");
-  const month = getDatePartValue(parts, "month");
-  const day = getDatePartValue(parts, "day");
-
-  return `${year}-${month}-${day}`;
+  return getSeoulDateKey(now);
 }
 
 export function getQuestionTemplateIndex(publishDate: string, templateCount: number): number {
@@ -25,7 +11,7 @@ export function getQuestionTemplateIndex(publishDate: string, templateCount: num
     throw new Error("templateCount must be greater than 0.");
   }
 
-  const dayNumber = Math.floor(Date.parse(`${publishDate}T00:00:00.000Z`) / 86400000);
+  const dayNumber = Math.floor(parseSeoulDate(publishDate).getTime() / 86400000);
   return ((dayNumber % templateCount) + templateCount) % templateCount;
 }
 

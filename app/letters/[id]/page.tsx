@@ -10,6 +10,7 @@ import { safeTrackServerAnalyticsEvent } from "@/lib/analytics";
 import { requireMembership, requireUser } from "@/lib/auth";
 import { promoteDueLettersForUser } from "@/lib/letters-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isFutureSeoulTime, toSeoulIsoOffsetString } from "@/lib/time";
 import { getLetterStatusLabel } from "@/lib/ui-text";
 import { formatDate } from "@/lib/utils";
 
@@ -46,7 +47,7 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
   let effectiveStatus = letter.status;
 
   if (isRecipient && letter.status === "delivered") {
-    const nowIso = new Date().toISOString();
+    const nowIso = toSeoulIsoOffsetString(new Date());
 
     const { data: readLetter, error: readError } = await supabase
       .from("letters")
@@ -82,7 +83,7 @@ export default async function LetterDetailPage({ params }: { params: Params }) {
     .eq("user_id", counterpartUserId)
     .maybeSingle();
 
-  const editable = isSender && effectiveStatus === "scheduled" && new Date(letter.editable_until).getTime() > Date.now();
+  const editable = isSender && effectiveStatus === "scheduled" && isFutureSeoulTime(letter.editable_until);
   const counterpartLabel = isSender ? "받는 사람" : "보낸 사람";
 
   return (

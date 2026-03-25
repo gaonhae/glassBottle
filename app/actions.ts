@@ -9,6 +9,7 @@ import { computeSchedule } from "@/lib/delay";
 import { getAuthPath, getInvitePath, normalizeInviteCode, sanitizeNextPath } from "@/lib/invite-links";
 import { PASSWORD_MAX_LENGTH } from "@/lib/password-policy";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { SEOUL_TIME_ZONE, toSeoulIsoOffsetString } from "@/lib/time";
 import { getUiErrorCode } from "@/lib/ui-text";
 import { generateInviteCode } from "@/lib/utils";
 
@@ -49,8 +50,7 @@ const joinFamilySchema = z.object({
 
 const sendLetterSchema = z.object({
   recipientId: z.string().uuid(),
-  bodyText: z.string().trim().min(1).max(2000),
-  timezone: z.string().trim().min(1).max(80)
+  bodyText: z.string().trim().min(1).max(2000)
 });
 
 const updateLetterSchema = z.object({
@@ -376,8 +376,7 @@ export async function joinFamilyFromInviteLinkAction(formData: FormData) {
 export async function sendLetterAction(formData: FormData) {
   const parsed = sendLetterSchema.safeParse({
     recipientId: formData.get("recipientId"),
-    bodyText: formData.get("bodyText"),
-    timezone: formData.get("timezone")
+    bodyText: formData.get("bodyText")
   });
 
   if (!parsed.success) {
@@ -410,13 +409,12 @@ export async function sendLetterAction(formData: FormData) {
       recipient_user_id: parsed.data.recipientId,
       body_text: parsed.data.bodyText,
       status: "scheduled",
-      scheduled_at: scheduledAt.toISOString(),
-      editable_until: editableUntil.toISOString(),
-      timezone_at_send: parsed.data.timezone
+      scheduled_at: toSeoulIsoOffsetString(scheduledAt),
+      editable_until: toSeoulIsoOffsetString(editableUntil),
+      timezone_at_send: SEOUL_TIME_ZONE
     })
     .select("id")
     .single();
-
   if (insertError || !createdLetter) {
     const message = insertError?.message ?? "letter-invalid-input";
     redirectWithError("/letters/new", getUiErrorCode(message));
@@ -457,7 +455,7 @@ export async function updateScheduledLetterAction(formData: FormData) {
     .eq("id", parsed.data.letterId)
     .eq("sender_user_id", user.id)
     .eq("status", "scheduled")
-    .gt("editable_until", new Date().toISOString())
+    .gt("editable_until", toSeoulIsoOffsetString(new Date()))
     .select("id")
     .maybeSingle();
 
@@ -485,12 +483,12 @@ export async function cancelScheduledLetterAction(formData: FormData) {
     .from("letters")
     .update({
       status: "canceled",
-      canceled_at: new Date().toISOString()
+      canceled_at: toSeoulIsoOffsetString(new Date())
     })
     .eq("id", parsed.data.letterId)
     .eq("sender_user_id", user.id)
     .eq("status", "scheduled")
-    .gt("editable_until", new Date().toISOString())
+    .gt("editable_until", toSeoulIsoOffsetString(new Date()))
     .select("id")
     .maybeSingle();
 
@@ -665,3 +663,4 @@ export async function updateDisplayNameAction(formData: FormData) {
   revalidatePath("/outbox");
   redirect("/settings?updated=1");
 }
+
