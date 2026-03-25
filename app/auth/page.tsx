@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/app/components/ui/card";
 import { Input } from "@/app/components/ui/input";
 import { getMembership } from "@/lib/auth";
 import { getAuthPath, sanitizeNextPath } from "@/lib/invite-links";
+import { PASSWORD_MAX_LENGTH } from "@/lib/password-policy";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getUiErrorMessage } from "@/lib/ui-text";
 import { cn } from "@/lib/utils";
@@ -90,7 +91,7 @@ export default async function AuthPage({ searchParams }: { searchParams: SearchP
               </label>
               <label className="field">
                 <span>비밀번호</span>
-                <Input name="password" type="password" required autoComplete="new-password" minLength={8} maxLength={72} />
+                <Input name="password" type="password" required autoComplete="new-password" maxLength={PASSWORD_MAX_LENGTH} />
               </label>
               <label className="field">
                 <span>비밀번호 확인</span>
@@ -99,8 +100,7 @@ export default async function AuthPage({ searchParams }: { searchParams: SearchP
                   type="password"
                   required
                   autoComplete="new-password"
-                  minLength={8}
-                  maxLength={72}
+                  maxLength={PASSWORD_MAX_LENGTH}
                 />
               </label>
               <Button type="submit" className="w-full">
@@ -116,7 +116,7 @@ export default async function AuthPage({ searchParams }: { searchParams: SearchP
               </label>
               <label className="field">
                 <span>비밀번호</span>
-                <Input name="password" type="password" required autoComplete="current-password" minLength={8} maxLength={72} />
+                <Input name="password" type="password" required autoComplete="current-password" maxLength={PASSWORD_MAX_LENGTH} />
               </label>
               <Button type="submit" className="w-full">
                 로그인

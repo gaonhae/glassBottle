@@ -15,7 +15,7 @@ const uiErrorMessages = {
   "auth-invalid-credentials": "이메일 또는 비밀번호가 올바르지 않습니다.",
   "auth-email-not-confirmed": "이메일 인증이 아직 완료되지 않았습니다.",
   "auth-user-already-registered": "이미 가입된 이메일입니다.",
-  "auth-weak-password": "비밀번호는 8자 이상이어야 합니다.",
+  "auth-weak-password": "비밀번호가 프로젝트 보안 정책을 충족하지 않습니다.",
   "auth-password-mismatch": "비밀번호 확인이 일치하지 않습니다.",
   "auth-email-invalid": "이메일 형식이 올바르지 않습니다.",
   "auth-rate-limit": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
