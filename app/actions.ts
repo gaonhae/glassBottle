@@ -7,13 +7,14 @@ import { z } from "zod";
 import { safeTrackAdminAnalyticsEvent, safeTrackServerAnalyticsEvent } from "@/lib/analytics";
 import { computeSchedule } from "@/lib/delay";
 import { getAuthPath, getInvitePath, normalizeInviteCode, sanitizeNextPath } from "@/lib/invite-links";
-import { PASSWORD_MAX_LENGTH } from "@/lib/password-policy";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@/lib/password-policy";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SEOUL_TIME_ZONE, toSeoulIsoOffsetString } from "@/lib/time";
 import { getUiErrorCode } from "@/lib/ui-text";
 import { generateInviteCode } from "@/lib/utils";
 
-const passwordSchema = z.string().min(1).max(PASSWORD_MAX_LENGTH);
+const signInPasswordSchema = z.string().min(1).max(PASSWORD_MAX_LENGTH);
+const signUpPasswordSchema = z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH);
 const nextPathSchema = z.string().trim().optional();
 const answerBodySchema = z.string().trim().min(1).max(2000);
 const commentBodySchema = z.string().trim().min(1).max(800);
@@ -22,15 +23,15 @@ const inviteCodeValueSchema = z.string().trim().min(6).max(16);
 
 const signInSchema = z.object({
   email: z.string().email(),
-  password: passwordSchema,
+  password: signInPasswordSchema,
   nextPath: nextPathSchema
 });
 
 const signUpSchema = z
   .object({
     email: z.string().email(),
-    password: passwordSchema,
-    confirmPassword: passwordSchema,
+    password: signUpPasswordSchema,
+    confirmPassword: signUpPasswordSchema,
     nextPath: nextPathSchema
   })
   .refine((data) => data.password === data.confirmPassword, {

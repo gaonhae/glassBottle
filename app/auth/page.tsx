@@ -9,7 +9,13 @@ import { Card, CardContent } from "@/app/components/ui/card";
 import { Input } from "@/app/components/ui/input";
 import { getMembership } from "@/lib/auth";
 import { getAuthPath, sanitizeNextPath } from "@/lib/invite-links";
-import { PASSWORD_MAX_LENGTH } from "@/lib/password-policy";
+import {
+  AUTH_EMAIL_FORMAT_HINT,
+  AUTH_EMAIL_PLACEHOLDER,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_REQUIREMENTS_HINT
+} from "@/lib/password-policy";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getUiErrorMessage } from "@/lib/ui-text";
 import { cn } from "@/lib/utils";
@@ -87,11 +93,32 @@ export default async function AuthPage({ searchParams }: { searchParams: SearchP
               {nextPath ? <input type="hidden" name="nextPath" value={nextPath} /> : null}
               <label className="field">
                 <span>이메일</span>
-                <Input name="email" type="email" required autoComplete="email" placeholder="you@example.com" />
+                <Input
+                  name="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  placeholder={AUTH_EMAIL_PLACEHOLDER}
+                  aria-describedby="signup-email-hint"
+                />
+                <p id="signup-email-hint" className="field-hint">
+                  {AUTH_EMAIL_FORMAT_HINT}
+                </p>
               </label>
               <label className="field">
                 <span>비밀번호</span>
-                <Input name="password" type="password" required autoComplete="new-password" maxLength={PASSWORD_MAX_LENGTH} />
+                <Input
+                  name="password"
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  minLength={PASSWORD_MIN_LENGTH}
+                  maxLength={PASSWORD_MAX_LENGTH}
+                  aria-describedby="signup-password-hint"
+                />
+                <p id="signup-password-hint" className="field-hint">
+                  {PASSWORD_REQUIREMENTS_HINT}
+                </p>
               </label>
               <label className="field">
                 <span>비밀번호 확인</span>
@@ -100,7 +127,9 @@ export default async function AuthPage({ searchParams }: { searchParams: SearchP
                   type="password"
                   required
                   autoComplete="new-password"
+                  minLength={PASSWORD_MIN_LENGTH}
                   maxLength={PASSWORD_MAX_LENGTH}
+                  aria-describedby="signup-password-hint"
                 />
               </label>
               <Button type="submit" className="w-full">
@@ -112,7 +141,7 @@ export default async function AuthPage({ searchParams }: { searchParams: SearchP
               {nextPath ? <input type="hidden" name="nextPath" value={nextPath} /> : null}
               <label className="field">
                 <span>이메일</span>
-                <Input name="email" type="email" required autoComplete="email" placeholder="you@example.com" />
+                <Input name="email" type="email" required autoComplete="email" placeholder={AUTH_EMAIL_PLACEHOLDER} />
               </label>
               <label className="field">
                 <span>비밀번호</span>
