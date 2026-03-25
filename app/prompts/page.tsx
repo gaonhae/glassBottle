@@ -8,7 +8,7 @@ import { Badge } from "@/app/components/ui/badge";
 import { buttonVariants } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { requireMembership, requireUser } from "@/lib/auth";
-import { canRevealFamilyAnswers } from "@/lib/questions";
+import { canRevealFamilyAnswers, splitQuestionsForDisplay } from "@/lib/questions";
 import { ensureTodayQuestion } from "@/lib/questions-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { QuestionRecord } from "@/lib/types";
@@ -70,7 +70,7 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
   const error = readParam(params, "error");
   const errorMessage = error ? getUiErrorMessage(error) : "";
   const answeredQuestionIds = new Set(answerRows.map((answer) => answer.question_id));
-  const todayQuestion = questionRows[0] ?? null;
+  const { todayQuestion, pastQuestions } = splitQuestionsForDisplay(questionRows);
 
   return (
     <section className="page-stack">
@@ -110,9 +110,9 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
           <p className="text-sm text-slate-400">최근 14개</p>
         </div>
 
-        {questionRows.length > 0 ? (
+        {pastQuestions.length > 0 ? (
           <div className="grid gap-3">
-            {questionRows.map((question) => {
+            {pastQuestions.map((question) => {
               const answered = answeredQuestionIds.has(question.id);
 
               return (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canRevealFamilyAnswers, getQuestionPublishDate, getQuestionTemplateIndex } from "@/lib/questions";
+import { canRevealFamilyAnswers, getQuestionPublishDate, getQuestionTemplateIndex, splitQuestionsForDisplay } from "@/lib/questions";
 
 describe("getQuestionPublishDate", () => {
   it("uses Asia/Seoul date even when UTC date is different", () => {
@@ -24,5 +24,36 @@ describe("canRevealFamilyAnswers", () => {
   it("reveals answers only after the user has answered", () => {
     expect(canRevealFamilyAnswers(true)).toBe(true);
     expect(canRevealFamilyAnswers(false)).toBe(false);
+  });
+});
+
+describe("splitQuestionsForDisplay", () => {
+  it("uses the newest question as today and excludes it from past questions", () => {
+    const questionRows = [
+      {
+        id: "today-question",
+        prompt_text: "Today",
+        publish_date: "2026-03-25",
+        created_at: "2026-03-25T00:00:00.000Z"
+      },
+      {
+        id: "older-question",
+        prompt_text: "Older",
+        publish_date: "2026-03-24",
+        created_at: "2026-03-24T00:00:00.000Z"
+      }
+    ];
+
+    expect(splitQuestionsForDisplay(questionRows)).toEqual({
+      todayQuestion: questionRows[0],
+      pastQuestions: [questionRows[1]]
+    });
+  });
+
+  it("returns no today question when the list is empty", () => {
+    expect(splitQuestionsForDisplay([])).toEqual({
+      todayQuestion: null,
+      pastQuestions: []
+    });
   });
 });

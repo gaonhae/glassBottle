@@ -1,4 +1,5 @@
 import { getSeoulDateKey, parseSeoulDate, SEOUL_TIME_ZONE } from "@/lib/time";
+import type { QuestionRecord } from "@/lib/types";
 
 export const QUESTION_TIMEZONE = SEOUL_TIME_ZONE;
 
@@ -17,4 +18,16 @@ export function getQuestionTemplateIndex(publishDate: string, templateCount: num
 
 export function canRevealFamilyAnswers(hasOwnAnswer: boolean): boolean {
   return hasOwnAnswer;
+}
+
+export function splitQuestionsForDisplay(questionRows: QuestionRecord[]): {
+  todayQuestion: QuestionRecord | null;
+  pastQuestions: QuestionRecord[];
+} {
+  const [todayQuestion, ...pastQuestions] = questionRows;
+
+  return {
+    todayQuestion: todayQuestion ?? null,
+    pastQuestions
+  };
 }
