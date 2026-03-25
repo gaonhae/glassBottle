@@ -1,17 +1,18 @@
-import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { signOutAction, updateDisplayNameAction } from "@/app/actions";
+import { CopyInviteLinkButton } from "@/app/components/copy-invite-link-button";
 import { PageHeader } from "@/app/components/page-header";
 import { StatusMessage } from "@/app/components/status-message";
-import { Button, buttonVariants } from "@/app/components/ui/button";
+import { Button } from "@/app/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Input } from "@/app/components/ui/input";
 import { requireMembership, requireUser } from "@/lib/auth";
-import { buildInviteUrl } from "@/lib/invite";
+import { env } from "@/lib/env";
+import { getInviteUrl, getRequestOrigin } from "@/lib/invite-links";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getFamilyRoleLabel, getUiErrorMessage } from "@/lib/ui-text";
-import { cn } from "@/lib/utils";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -30,7 +31,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
   const membership = await requireMembership(user.id);
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: family }, params] = await Promise.all([
+  const [headersList, { data: family }, params] = await Promise.all([
+    headers(),
     supabase.from("families").select("id, invite_code, owner_user_id").eq("id", membership.family_id).maybeSingle(),
     searchParams
   ]);
@@ -43,64 +45,57 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
   const updated = readParam(params, "updated");
   const errorMessage = error ? getUiErrorMessage(error) : "";
   const isOwner = family.owner_user_id === user.id;
-  const inviteUrl = buildInviteUrl(family.invite_code);
+  const inviteUrl = getInviteUrl(family.invite_code, getRequestOrigin(headersList, env.NEXT_PUBLIC_SITE_URL));
 
   return (
     <section className="page-stack">
-      <PageHeader
-        eyebrow="Settings"
-        title="??"
-        description="??? ??? ?? ?? ??? ??? ? ????."
-      />
+      <PageHeader eyebrow="Settings" title="설정" description="프로필을 관리하고 가족 초대 링크를 공유할 수 있습니다." />
 
-      {updated === "1" ? <StatusMessage variant="success">?? ??? ???????.</StatusMessage> : null}
+      {updated === "1" ? <StatusMessage variant="success">표시 이름을 저장했습니다.</StatusMessage> : null}
       {errorMessage ? <StatusMessage variant="error">{errorMessage}</StatusMessage> : null}
 
       <Card>
         <CardHeader>
-          <CardTitle>? ???</CardTitle>
-          <CardDescription>?? ?? ??? ??? ?? ?????.</CardDescription>
+          <CardTitle>내 프로필</CardTitle>
+          <CardDescription>가족 안에서 보일 표시 이름을 관리합니다.</CardDescription>
         </CardHeader>
         <CardContent>
           <form action={updateDisplayNameAction} className="section-stack">
             <label className="field">
-              <span>?? ??</span>
+              <span>표시 이름</span>
               <Input name="displayName" defaultValue={membership.display_name} maxLength={24} required />
             </label>
-            <Button type="submit">?? ????</Button>
+            <Button type="submit">저장하기</Button>
           </form>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>?? ?? ??</CardTitle>
-          <CardDescription>??? ??? ??? ?? ??? ?????.</CardDescription>
+          <CardTitle>가족 초대 링크</CardTitle>
+          <CardDescription>가족이 이 링크를 열면 로그인 후 바로 참여 흐름으로 이어집니다.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4 text-sm leading-6 text-slate-600">
+        <CardContent className="section-stack">
           <label className="field">
-            <span>?? ??</span>
-            <Input value={inviteUrl} readOnly />
+            <span>초대 링크</span>
+            <Input value={inviteUrl} readOnly aria-label="초대 링크" />
           </label>
-          <div className="flex flex-wrap gap-3">
-            <Link href={inviteUrl} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "no-underline")}>
-              ?? ?? ????
-            </Link>
-          </div>
-          <p>?? ??: <span className="font-semibold tracking-[0.22em] text-slate-950">{family.invite_code}</span></p>
-          <p>? ??: <span className="font-semibold text-slate-950">{getFamilyRoleLabel(isOwner)}</span></p>
+          <CopyInviteLinkButton value={inviteUrl} />
+          <p className="text-sm leading-6 text-slate-600">
+            내 역할: <span className="font-semibold text-slate-950">{getFamilyRoleLabel(isOwner)}</span>
+          </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>??</CardTitle>
-          <CardDescription>?? ???? ???????.</CardDescription>
+          <CardTitle>로그아웃</CardTitle>
+          <CardDescription>현재 계정에서 안전하게 로그아웃합니다.</CardDescription>
         </CardHeader>
         <CardContent>
           <form action={signOutAction}>
             <Button type="submit" variant="secondary" className="w-full">
-              ????
+              로그아웃
             </Button>
           </form>
         </CardContent>

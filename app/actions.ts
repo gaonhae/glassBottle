@@ -6,25 +6,30 @@ import { z } from "zod";
 
 import { safeTrackAdminAnalyticsEvent, safeTrackServerAnalyticsEvent } from "@/lib/analytics";
 import { computeSchedule } from "@/lib/delay";
-import { buildAuthPath, buildOnboardingPath, getSafeNextPath, normalizeInviteCode } from "@/lib/invite";
+import { getAuthPath, getInvitePath, normalizeInviteCode, sanitizeNextPath } from "@/lib/invite-links";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getUiErrorCode } from "@/lib/ui-text";
 import { generateInviteCode } from "@/lib/utils";
 
 const passwordSchema = z.string().min(8).max(72);
+const nextPathSchema = z.string().trim().optional();
 const answerBodySchema = z.string().trim().min(1).max(2000);
 const commentBodySchema = z.string().trim().min(1).max(800);
+const displayNameValueSchema = z.string().trim().min(1).max(24);
+const inviteCodeValueSchema = z.string().trim().min(6).max(16);
 
 const signInSchema = z.object({
   email: z.string().email(),
-  password: passwordSchema
+  password: passwordSchema,
+  nextPath: nextPathSchema
 });
 
 const signUpSchema = z
   .object({
     email: z.string().email(),
     password: passwordSchema,
-    confirmPassword: passwordSchema
+    confirmPassword: passwordSchema,
+    nextPath: nextPathSchema
   })
   .refine((data) => data.password === data.confirmPassword, {
     path: ["confirmPassword"],
@@ -33,12 +38,12 @@ const signUpSchema = z
 
 const createFamilySchema = z.object({
   familyName: z.string().trim().min(2).max(40),
-  displayName: z.string().trim().min(1).max(24)
+  displayName: displayNameValueSchema
 });
 
 const joinFamilySchema = z.object({
-  inviteCode: z.string().trim().min(6).max(16),
-  displayName: z.string().trim().min(1).max(24)
+  inviteCode: inviteCodeValueSchema,
+  displayName: displayNameValueSchema
 });
 
 const sendLetterSchema = z.object({
@@ -57,7 +62,7 @@ const cancelLetterSchema = z.object({
 });
 
 const displayNameSchema = z.object({
-  displayName: z.string().trim().min(1).max(24)
+  displayName: displayNameValueSchema
 });
 
 const submitAnswerSchema = z.object({
@@ -69,6 +74,24 @@ const createCommentSchema = z.object({
   answerId: z.string().uuid(),
   bodyText: commentBodySchema
 });
+
+function readStringFormValue(value: FormDataEntryValue | null) {
+  return typeof value === "string" ? value : "";
+}
+
+function getOptionalNextPath(formData: FormData) {
+  const nextPath = readStringFormValue(formData.get("nextPath"));
+  return nextPath ? sanitizeNextPath(nextPath, "/onboarding") : "";
+}
+
+function appendSearchParam(path: string, key: string, value: string) {
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}${key}=${encodeURIComponent(value)}`;
+}
+
+function redirectWithError(path: string, error: string): never {
+  redirect(appendSearchParam(path, "error", error));
+}
 
 async function requireUserContext() {
   const supabase = await createSupabaseServerClient();
@@ -83,7 +106,11 @@ async function requireUserContext() {
   return { supabase, user };
 }
 
-async function ensureNoMembership(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, userId: string) {
+async function ensureNoMembership(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  redirectPath = "/prompts"
+) {
   const { data, error } = await supabase.from("family_members").select("id").eq("user_id", userId).maybeSingle();
 
   if (error) {
@@ -91,7 +118,7 @@ async function ensureNoMembership(supabase: Awaited<ReturnType<typeof createSupa
   }
 
   if (data) {
-    redirect("/prompts");
+    redirect(redirectPath);
   }
 }
 
@@ -113,30 +140,33 @@ async function getRequiredMembership(supabase: Awaited<ReturnType<typeof createS
   return data;
 }
 
-function getInviteCodeFromFormData(formData: FormData) {
-  const inviteCode = formData.get("inviteCode");
-  return typeof inviteCode === "string" ? normalizeInviteCode(inviteCode) : "";
-}
+async function upsertOwnProfile(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  user: { id: string; email?: string | null },
+  displayName: string,
+  redirectPath: string
+) {
+  const { error } = await supabase.from("profiles").upsert({
+    user_id: user.id,
+    email: user.email ?? "",
+    display_name: displayName
+  });
 
-function redirectToJoinOnboarding(inviteCode: string, error: string): never {
-  redirect(
-    buildOnboardingPath({
-      mode: "join",
-      inviteCode,
-      error
-    })
-  );
+  if (error) {
+    redirectWithError(redirectPath, getUiErrorCode(error.message));
+  }
 }
 
 export async function signInWithPasswordAction(formData: FormData) {
-  const nextPath = getSafeNextPath(formData.get("next"));
+  const nextPath = getOptionalNextPath(formData);
   const parsed = signInSchema.safeParse({
     email: formData.get("email"),
-    password: formData.get("password")
+    password: formData.get("password"),
+    nextPath
   });
 
   if (!parsed.success) {
-    redirect(buildAuthPath({ mode: "login", next: nextPath, error: "auth-invalid-input" }));
+    redirect(getAuthPath({ mode: "login", error: "auth-invalid-input", nextPath }));
   }
 
   const supabase = await createSupabaseServerClient();
@@ -147,28 +177,23 @@ export async function signInWithPasswordAction(formData: FormData) {
   });
 
   if (error) {
-    redirect(
-      buildAuthPath({
-        mode: "login",
-        next: nextPath,
-        error: getUiErrorCode(error.message)
-      })
-    );
+    redirect(getAuthPath({ mode: "login", error: getUiErrorCode(error.message), nextPath }));
   }
 
-  redirect(nextPath ?? "/prompts");
+  redirect(nextPath || "/onboarding");
 }
 
 export async function signUpWithPasswordAction(formData: FormData) {
-  const nextPath = getSafeNextPath(formData.get("next"));
+  const nextPath = getOptionalNextPath(formData);
   const parsed = signUpSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
-    confirmPassword: formData.get("confirmPassword")
+    confirmPassword: formData.get("confirmPassword"),
+    nextPath
   });
 
   if (!parsed.success) {
-    redirect(buildAuthPath({ mode: "signup", next: nextPath, error: "auth-signup-invalid-input" }));
+    redirect(getAuthPath({ mode: "signup", error: "auth-signup-invalid-input", nextPath }));
   }
 
   const supabase = await createSupabaseServerClient();
@@ -179,13 +204,7 @@ export async function signUpWithPasswordAction(formData: FormData) {
   });
 
   if (error) {
-    redirect(
-      buildAuthPath({
-        mode: "signup",
-        next: nextPath,
-        error: getUiErrorCode(error.message)
-      })
-    );
+    redirect(getAuthPath({ mode: "signup", error: getUiErrorCode(error.message), nextPath }));
   }
 
   if (data.user?.id) {
@@ -196,16 +215,10 @@ export async function signUpWithPasswordAction(formData: FormData) {
   }
 
   if (data.session) {
-    redirect(nextPath ?? "/onboarding");
+    redirect(nextPath || "/onboarding");
   }
 
-  redirect(
-    buildAuthPath({
-      mode: "login",
-      next: nextPath,
-      success: "signup-created"
-    })
-  );
+  redirect(getAuthPath({ mode: "login", success: "signup-created", nextPath }));
 }
 
 export async function signOutAction() {
@@ -226,18 +239,7 @@ export async function createFamilyAction(formData: FormData) {
 
   const { supabase, user } = await requireUserContext();
   await ensureNoMembership(supabase, user.id);
-
-  const email = user.email ?? "";
-
-  const { error: profileError } = await supabase.from("profiles").upsert({
-    user_id: user.id,
-    email,
-    display_name: parsed.data.displayName
-  });
-
-  if (profileError) {
-    redirect(`/onboarding?error=${encodeURIComponent(getUiErrorCode(profileError.message))}`);
-  }
+  await upsertOwnProfile(supabase, user, parsed.data.displayName, "/onboarding");
 
   let familyId = "";
 
@@ -255,12 +257,12 @@ export async function createFamilyAction(formData: FormData) {
     }
 
     if (error.code !== "23505") {
-      redirect(`/onboarding?error=${encodeURIComponent(getUiErrorCode(error.message))}`);
+      redirectWithError("/onboarding", getUiErrorCode(error.message));
     }
   }
 
   if (!familyId) {
-    redirect("/onboarding?error=onboarding-invite-code-generation-failed");
+    redirectWithError("/onboarding", "onboarding-invite-code-generation-failed");
   }
 
   await safeTrackServerAnalyticsEvent({
@@ -276,30 +278,20 @@ export async function createFamilyAction(formData: FormData) {
 }
 
 export async function joinFamilyAction(formData: FormData) {
-  const inviteCode = getInviteCodeFromFormData(formData);
   const parsed = joinFamilySchema.safeParse({
     inviteCode: formData.get("inviteCode"),
     displayName: formData.get("displayName")
   });
 
   if (!parsed.success) {
-    redirectToJoinOnboarding(inviteCode, "onboarding-invalid-join-input");
+    redirectWithError("/onboarding", "onboarding-invalid-join-input");
   }
 
   const { supabase, user } = await requireUserContext();
   await ensureNoMembership(supabase, user.id);
 
   const normalizedCode = normalizeInviteCode(parsed.data.inviteCode);
-
-  const { error: profileError } = await supabase.from("profiles").upsert({
-    user_id: user.id,
-    email: user.email ?? "",
-    display_name: parsed.data.displayName
-  });
-
-  if (profileError) {
-    redirectToJoinOnboarding(normalizedCode, getUiErrorCode(profileError.message));
-  }
+  await upsertOwnProfile(supabase, user, parsed.data.displayName, "/onboarding");
 
   const { data: familyId, error: joinError } = await supabase.rpc("join_family", {
     p_invite_code: normalizedCode,
@@ -308,14 +300,14 @@ export async function joinFamilyAction(formData: FormData) {
 
   if (joinError) {
     if (joinError.message.includes("Invalid invite code")) {
-      redirectToJoinOnboarding(normalizedCode, "onboarding-invalid-invite-code");
+      redirectWithError("/onboarding", "onboarding-invalid-invite-code");
     }
 
     if (joinError.message.includes("Family member limit reached")) {
-      redirectToJoinOnboarding(normalizedCode, "onboarding-family-full");
+      redirectWithError("/onboarding", "onboarding-family-full");
     }
 
-    redirectToJoinOnboarding(normalizedCode, getUiErrorCode(joinError.message));
+    redirectWithError("/onboarding", getUiErrorCode(joinError.message));
   }
 
   const resolvedFamilyId = typeof familyId === "string" ? familyId : "";
@@ -330,6 +322,53 @@ export async function joinFamilyAction(formData: FormData) {
   revalidatePath("/onboarding");
   revalidatePath("/prompts");
   redirect("/prompts");
+}
+
+export async function joinFamilyFromInviteLinkAction(formData: FormData) {
+  const rawInviteCode = normalizeInviteCode(readStringFormValue(formData.get("inviteCode")));
+  const invitePath = rawInviteCode ? getInvitePath(rawInviteCode) : "/onboarding";
+  const parsed = joinFamilySchema.safeParse({
+    inviteCode: rawInviteCode,
+    displayName: formData.get("displayName")
+  });
+
+  if (!parsed.success) {
+    redirectWithError(invitePath, "invite-invalid-link");
+  }
+
+  const { supabase, user } = await requireUserContext();
+  await ensureNoMembership(supabase, user.id, "/prompts?error=invite-already-in-family");
+  await upsertOwnProfile(supabase, user, parsed.data.displayName, invitePath);
+
+  const { data: familyId, error: joinError } = await supabase.rpc("join_family", {
+    p_invite_code: rawInviteCode,
+    p_display_name: parsed.data.displayName
+  });
+
+  if (joinError) {
+    if (joinError.message.includes("Invalid invite code")) {
+      redirectWithError(invitePath, "invite-invalid-link");
+    }
+
+    if (joinError.message.includes("Family member limit reached")) {
+      redirectWithError(invitePath, "onboarding-family-full");
+    }
+
+    redirectWithError(invitePath, getUiErrorCode(joinError.message));
+  }
+
+  const resolvedFamilyId = typeof familyId === "string" ? familyId : "";
+
+  await safeTrackServerAnalyticsEvent({
+    eventName: "familyMemberJoined",
+    userId: user.id,
+    familyId: resolvedFamilyId || null,
+    properties: resolvedFamilyId ? { familyId: resolvedFamilyId } : undefined
+  });
+
+  revalidatePath("/onboarding");
+  revalidatePath("/prompts");
+  redirect(appendSearchParam("/prompts", "joined", "1"));
 }
 
 export async function sendLetterAction(formData: FormData) {
@@ -378,7 +417,7 @@ export async function sendLetterAction(formData: FormData) {
 
   if (insertError || !createdLetter) {
     const message = insertError?.message ?? "letter-invalid-input";
-    redirect(`/letters/new?error=${encodeURIComponent(getUiErrorCode(message))}`);
+    redirectWithError("/letters/new", getUiErrorCode(message));
   }
 
   await safeTrackServerAnalyticsEvent({
@@ -403,7 +442,7 @@ export async function updateScheduledLetterAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/outbox?error=letter-invalid-update-input");
+    redirectWithError("/outbox", "letter-invalid-update-input");
   }
 
   const { supabase, user } = await requireUserContext();
@@ -422,7 +461,7 @@ export async function updateScheduledLetterAction(formData: FormData) {
 
   if (error || !updatedLetter) {
     const message = error?.message ?? "letter-update-window-expired";
-    redirect(`/outbox?error=${encodeURIComponent(getUiErrorCode(message))}`);
+    redirectWithError("/outbox", getUiErrorCode(message));
   }
 
   revalidatePath("/outbox");
@@ -435,7 +474,7 @@ export async function cancelScheduledLetterAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/outbox?error=letter-invalid-cancel-input");
+    redirectWithError("/outbox", "letter-invalid-cancel-input");
   }
 
   const { supabase, user } = await requireUserContext();
@@ -455,7 +494,7 @@ export async function cancelScheduledLetterAction(formData: FormData) {
 
   if (error || !canceledLetter) {
     const message = error?.message ?? "letter-cancel-window-expired";
-    redirect(`/outbox?error=${encodeURIComponent(getUiErrorCode(message))}`);
+    redirectWithError("/outbox", getUiErrorCode(message));
   }
 
   revalidatePath("/outbox");
@@ -581,16 +620,7 @@ export async function updateDisplayNameAction(formData: FormData) {
   }
 
   const { supabase, user } = await requireUserContext();
-
-  const { error: profileError } = await supabase.from("profiles").upsert({
-    user_id: user.id,
-    email: user.email ?? "",
-    display_name: parsed.data.displayName
-  });
-
-  if (profileError) {
-    redirect(`/settings?error=${encodeURIComponent(getUiErrorCode(profileError.message))}`);
-  }
+  await upsertOwnProfile(supabase, user, parsed.data.displayName, "/settings");
 
   const { error: memberError } = await supabase
     .from("family_members")
@@ -598,7 +628,7 @@ export async function updateDisplayNameAction(formData: FormData) {
     .eq("user_id", user.id);
 
   if (memberError) {
-    redirect(`/settings?error=${encodeURIComponent(getUiErrorCode(memberError.message))}`);
+    redirectWithError("/settings", getUiErrorCode(memberError.message));
   }
 
   revalidatePath("/settings");
@@ -607,4 +637,3 @@ export async function updateDisplayNameAction(formData: FormData) {
   revalidatePath("/outbox");
   redirect("/settings?updated=1");
 }
-

@@ -12,7 +12,7 @@ import { canRevealFamilyAnswers } from "@/lib/questions";
 import { ensureTodayQuestion } from "@/lib/questions-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { QuestionRecord } from "@/lib/types";
-import { getUiNoticeMessage } from "@/lib/ui-text";
+import { getUiErrorMessage } from "@/lib/ui-text";
 import { cn, formatDate } from "@/lib/utils";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -37,15 +37,11 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
   const membership = await requireMembership(user.id);
   await ensureTodayQuestion();
   const supabase = await createSupabaseServerClient();
-  const params = await searchParams;
-  const notice = readParam(params, "notice");
-  const noticeMessage = notice ? getUiNoticeMessage(notice) : "";
 
-  const { data: questions, error: questionsError } = await supabase
-    .from("questions")
-    .select("id, prompt_text, publish_date, created_at")
-    .order("publish_date", { ascending: false })
-    .limit(14);
+  const [{ data: questions, error: questionsError }, params] = await Promise.all([
+    supabase.from("questions").select("id, prompt_text, publish_date, created_at").order("publish_date", { ascending: false }).limit(14),
+    searchParams
+  ]);
 
   if (questionsError) {
     throw new Error(questionsError.message);
@@ -70,6 +66,9 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
     answerRows = (data ?? []) as AnswerLookupRow[];
   }
 
+  const joined = readParam(params, "joined");
+  const error = readParam(params, "error");
+  const errorMessage = error ? getUiErrorMessage(error) : "";
   const answeredQuestionIds = new Set(answerRows.map((answer) => answer.question_id));
   const todayQuestion = questionRows[0] ?? null;
 
@@ -77,13 +76,10 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
     <section className="page-stack">
       <AnalyticsPageView eventName="homeViewed" />
 
-      <PageHeader
-        eyebrow="Daily prompts"
-        title="오늘의 질문"
-        description="지금 이 순간 떠오르는 마음을 적고, 가족의 생각도 한눈에 살펴보세요."
-      />
+      <PageHeader eyebrow="Daily prompts" title="오늘의 질문" description="답변을 남기고, 가족의 생각을 천천히 함께 읽어 보세요." />
 
-      {noticeMessage ? <StatusMessage variant="success">{noticeMessage}</StatusMessage> : null}
+      {joined === "1" ? <StatusMessage variant="success">가족 참여가 완료되었습니다. 오늘의 질문을 확인해 보세요.</StatusMessage> : null}
+      {errorMessage ? <StatusMessage variant="error">{errorMessage}</StatusMessage> : null}
 
       {todayQuestion ? (
         <Card className="overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,245,255,0.94))]">
@@ -94,24 +90,24 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
                 <h2 className="font-serif text-[1.9rem] leading-tight text-slate-950">{todayQuestion.prompt_text}</h2>
                 <p className="text-sm leading-6 text-slate-500">
                   {canRevealFamilyAnswers(answeredQuestionIds.has(todayQuestion.id))
-                    ? "이미 답변을 남겼어요. 이제 가족의 답변도 함께 읽어볼 수 있어요."
-                    : "답변을 남기면 가족의 이야기도 열립니다."}
+                    ? "답변을 남겼다면, 이제 가족의 답변도 함께 볼 수 있어요."
+                    : "먼저 내 답변을 남기면 가족의 답변이 열립니다."}
                 </p>
               </div>
             </div>
             <Link href={`/prompts/${todayQuestion.id}`} className={cn(buttonVariants({ size: "lg" }), "w-full no-underline")}>
-              {answeredQuestionIds.has(todayQuestion.id) ? "답변 보러 가기" : "지금 답변 쓰기"}
+              {answeredQuestionIds.has(todayQuestion.id) ? "답변 보러 가기" : "답변 먼저 남기기"}
             </Link>
           </CardContent>
         </Card>
       ) : (
-        <EmptyState title="아직 오늘의 질문이 없어요" description="질문이 준비되면 여기에서 바로 확인할 수 있습니다." />
+        <EmptyState title="아직 도착한 질문이 없어요" description="질문이 준비되면 여기에서 바로 확인할 수 있습니다." />
       )}
 
       <div className="section-stack">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-950">최근 질문</h2>
-          <p className="text-sm text-slate-400">최근 14일</p>
+          <h2 className="text-lg font-semibold text-slate-950">지난 질문</h2>
+          <p className="text-sm text-slate-400">최근 14개</p>
         </div>
 
         {questionRows.length > 0 ? (
@@ -135,7 +131,7 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
             })}
           </div>
         ) : (
-          <EmptyState title="아직 질문이 준비되지 않았어요" description="첫 질문이 발행되면 이곳에 차곡차곡 쌓입니다." />
+          <EmptyState title="아직 지난 질문이 없어요" description="질문이 쌓이면 이곳에서 다시 볼 수 있습니다." />
         )}
       </div>
     </section>
