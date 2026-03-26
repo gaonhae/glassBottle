@@ -7,6 +7,7 @@ import { AnalyticsLink } from "@/app/components/analytics-link";
 import { AnalyticsPageView } from "@/app/components/analytics-page-view";
 import { EmptyState } from "@/app/components/empty-state";
 import { PageHeader } from "@/app/components/page-header";
+import { PageRefreshOnSuccess } from "@/app/components/page-refresh-on-success";
 import { StatusMessage } from "@/app/components/status-message";
 import { Badge } from "@/app/components/ui/badge";
 import { Button, buttonVariants } from "@/app/components/ui/button";
@@ -132,6 +133,7 @@ export default async function PromptDetailPage({ params, searchParams }: { param
   return (
     <section className="page-stack">
       <AnalyticsPageView eventName="questionViewed" eventProperties={{ questionId: id }} />
+      <PageRefreshOnSuccess watchedParams={["answered"]} />
 
       <Link href="/prompts" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "w-fit no-underline")}>
         <ArrowLeft className="h-4 w-4" />

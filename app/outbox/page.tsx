@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cancelScheduledLetterAction, updateScheduledLetterAction } from "@/app/actions";
 import { EmptyState } from "@/app/components/empty-state";
 import { PageHeader } from "@/app/components/page-header";
+import { PageRefreshOnSuccess } from "@/app/components/page-refresh-on-success";
 import { StatusMessage } from "@/app/components/status-message";
 import { Badge } from "@/app/components/ui/badge";
 import { buttonVariants, Button } from "@/app/components/ui/button";
@@ -59,6 +60,7 @@ export default async function OutboxPage({ searchParams }: { searchParams: Searc
   const errorMessage = error ? getUiErrorMessage(error) : "";
   return (
     <section className="page-stack">
+      <PageRefreshOnSuccess watchedParams={["sent"]} />
       <PageHeader
         eyebrow="Outbox"
         title="보낸 편지"

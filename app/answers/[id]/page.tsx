@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createAnswerCommentAction } from "@/app/actions";
 import { AnalyticsPageView } from "@/app/components/analytics-page-view";
 import { EmptyState } from "@/app/components/empty-state";
+import { PageRefreshOnSuccess } from "@/app/components/page-refresh-on-success";
 import { StatusMessage } from "@/app/components/status-message";
 import { Badge } from "@/app/components/ui/badge";
 import { Button, buttonVariants } from "@/app/components/ui/button";
@@ -141,6 +142,7 @@ export default async function AnswerDetailPage({ params, searchParams }: { param
           questionId: answer.question_id
         }}
       />
+      <PageRefreshOnSuccess watchedParams={["commented"]} />
 
       <Link href={`/prompts/${answer.question_id}`} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "w-fit no-underline")}>
         <ArrowLeft className="h-4 w-4" />
