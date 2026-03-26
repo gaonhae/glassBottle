@@ -4,6 +4,16 @@ export type AnswerCommentThread = AnswerCommentRecord & {
   replies: AnswerCommentRecord[];
 };
 
+export function countAnswerCommentsByAnswerId(comments: Array<Pick<AnswerCommentRecord, "answer_id">>): Map<string, number> {
+  const counts = new Map<string, number>();
+
+  for (const comment of comments) {
+    counts.set(comment.answer_id, (counts.get(comment.answer_id) ?? 0) + 1);
+  }
+
+  return counts;
+}
+
 export function buildAnswerCommentThreads(comments: AnswerCommentRecord[]): AnswerCommentThread[] {
   const threads: AnswerCommentThread[] = [];
   const repliesByParentId = new Map<string, AnswerCommentRecord[]>();

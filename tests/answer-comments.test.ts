@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAnswerCommentThreads } from "@/lib/answer-comments";
+import { buildAnswerCommentThreads, countAnswerCommentsByAnswerId } from "@/lib/answer-comments";
 import type { AnswerCommentRecord } from "@/lib/types";
 
 function createCommentRecord(overrides: Partial<AnswerCommentRecord>): AnswerCommentRecord {
@@ -54,5 +54,26 @@ describe("buildAnswerCommentThreads", () => {
 
     expect(threads).toHaveLength(1);
     expect(threads[0].replies.map((reply) => reply.id)).toEqual(["reply-1", "reply-2"]);
+  });
+});
+
+describe("countAnswerCommentsByAnswerId", () => {
+  it("counts all comments for each answer, including replies", () => {
+    const comments = [
+      createCommentRecord({ id: "comment-1", answer_id: "answer-1" }),
+      createCommentRecord({ id: "reply-1", answer_id: "answer-1", parent_comment_id: "comment-1" }),
+      createCommentRecord({ id: "comment-2", answer_id: "answer-2" })
+    ];
+
+    const counts = countAnswerCommentsByAnswerId(comments);
+
+    expect(counts.get("answer-1")).toBe(2);
+    expect(counts.get("answer-2")).toBe(1);
+  });
+
+  it("returns an empty map when there are no comments", () => {
+    const counts = countAnswerCommentsByAnswerId([]);
+
+    expect(counts.size).toBe(0);
   });
 });

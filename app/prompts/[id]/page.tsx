@@ -12,6 +12,7 @@ import { Badge } from "@/app/components/ui/badge";
 import { Button, buttonVariants } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Textarea } from "@/app/components/ui/textarea";
+import { countAnswerCommentsByAnswerId } from "@/lib/answer-comments";
 import { requireMembership, requireUser } from "@/lib/auth";
 import { canRevealFamilyAnswers } from "@/lib/questions";
 import { ensureTodayQuestion } from "@/lib/questions-server";
@@ -33,6 +34,7 @@ type AnswerListRow = {
   author_user_id: string;
   body_text: string;
   created_at: string;
+  commentCount: number;
 };
 
 function readParam(params: Record<string, string | string[] | undefined>, key: string) {
@@ -101,7 +103,29 @@ export default async function PromptDetailPage({ params, searchParams }: { param
       throw new Error(membersError.message);
     }
 
-    answerRows = (answers ?? []) as AnswerListRow[];
+    const rawAnswerRows = (answers ?? []) as Array<Omit<AnswerListRow, "commentCount">>;
+    const answerIds = rawAnswerRows.map((answer) => answer.id);
+    let answerCommentCountByAnswerId = new Map<string, number>();
+
+    if (answerIds.length > 0) {
+      const { data: answerComments, error: answerCommentsError } = await supabase
+        .from("answer_comments")
+        .select("answer_id")
+        .in("answer_id", answerIds);
+
+      if (answerCommentsError) {
+        throw new Error(answerCommentsError.message);
+      }
+
+      answerCommentCountByAnswerId = countAnswerCommentsByAnswerId(
+        (answerComments ?? []) as Array<{ answer_id: string }>
+      );
+    }
+
+    answerRows = rawAnswerRows.map((answer) => ({
+      ...answer,
+      commentCount: answerCommentCountByAnswerId.get(answer.id) ?? 0
+    }));
     displayNameByUserId = new Map((members ?? []).map((member) => [member.user_id, member.display_name]));
   }
 
@@ -169,6 +193,10 @@ export default async function PromptDetailPage({ params, searchParams }: { param
                         <span className="text-sm text-slate-400">{formatDateTime(answer.created_at)}</span>
                       </div>
                       <p className="text-sm leading-6 text-slate-600">{snippet(answer.body_text, 120)}</p>
+                      <div className="flex items-center justify-between gap-3 text-xs text-slate-400">
+                        <span>클릭해서 자세히 보기</span>
+                        <span>댓글 {answer.commentCount}개</span>
+                      </div>
                     </CardContent>
                   </Card>
                 </AnalyticsLink>
