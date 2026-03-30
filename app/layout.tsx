@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import Script from "next/script";
 
 import { MobileNav } from "@/app/components/mobile-nav";
 import { BRAND_NAME } from "@/lib/ui-text";
@@ -24,6 +25,12 @@ export default async function RootLayout({
   return (
     <html lang="ko">
       <body>
+        <Script
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2420315186310136"
+          strategy="beforeInteractive"
+          crossOrigin="anonymous"
+          async
+        />
         <div className="relative flex min-h-[100dvh] justify-center sm:px-6 sm:py-6">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.72),transparent_52%)]" />
           <div className="relative w-full max-w-[430px]">
