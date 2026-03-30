@@ -2,6 +2,9 @@ import { getSeoulDateKey, parseSeoulDate, SEOUL_TIME_ZONE } from "@/lib/time";
 import type { QuestionRecord } from "@/lib/types";
 
 export const QUESTION_TIMEZONE = SEOUL_TIME_ZONE;
+export const QUESTION_ROTATION_START_DATE = "2026-03-26";
+
+const QUESTION_ROTATION_START_DAY_NUMBER = Math.floor(parseSeoulDate(QUESTION_ROTATION_START_DATE).getTime() / 86400000);
 
 export function getQuestionPublishDate(now = new Date()): string {
   return getSeoulDateKey(now);
@@ -13,7 +16,8 @@ export function getQuestionTemplateIndex(publishDate: string, templateCount: num
   }
 
   const dayNumber = Math.floor(parseSeoulDate(publishDate).getTime() / 86400000);
-  return ((dayNumber % templateCount) + templateCount) % templateCount;
+  const dayOffset = dayNumber - QUESTION_ROTATION_START_DAY_NUMBER;
+  return ((dayOffset % templateCount) + templateCount) % templateCount;
 }
 
 export function canRevealFamilyAnswers(hasOwnAnswer: boolean): boolean {

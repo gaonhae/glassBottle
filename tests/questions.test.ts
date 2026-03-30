@@ -9,14 +9,21 @@ describe("getQuestionPublishDate", () => {
 });
 
 describe("getQuestionTemplateIndex", () => {
-  it("returns a stable template index for a given publish date", () => {
-    expect(getQuestionTemplateIndex("2026-03-25", 12)).toBeGreaterThanOrEqual(0);
-    expect(getQuestionTemplateIndex("2026-03-25", 12)).toBeLessThan(12);
-    expect(getQuestionTemplateIndex("2026-03-25", 12)).toBe(getQuestionTemplateIndex("2026-03-25", 12));
+  it("maps 2026-03-26 to the first template", () => {
+    expect(getQuestionTemplateIndex("2026-03-26", 10)).toBe(0);
+  });
+
+  it("advances one template per day after 2026-03-26", () => {
+    expect(getQuestionTemplateIndex("2026-03-27", 10)).toBe(1);
+    expect(getQuestionTemplateIndex("2026-03-28", 10)).toBe(2);
+  });
+
+  it("remains stable for the same publish date", () => {
+    expect(getQuestionTemplateIndex("2026-03-26", 10)).toBe(getQuestionTemplateIndex("2026-03-26", 10));
   });
 
   it("throws when there are no templates", () => {
-    expect(() => getQuestionTemplateIndex("2026-03-25", 0)).toThrow();
+    expect(() => getQuestionTemplateIndex("2026-03-26", 0)).toThrow();
   });
 });
 
